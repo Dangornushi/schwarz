@@ -111,6 +111,7 @@ void display() {
             break;
         if (*p != '\r') {
             /*
+            // if colour options are set
             switch(*p) {
                 case '#': {
                     for (; *p != ' '; j++) {
@@ -389,6 +390,7 @@ void visualMode() {
         }
     }
 }
+rm -f .DS_Store
 
 void gotoLine() {
     char ch[100];
