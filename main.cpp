@@ -1,6 +1,6 @@
 // main.cpp   Mushi's Editor 2022.
 // compile: g++ -std=c++1z ae2019.cpp -lcurses
-// Github... Comming soon
+// Github; Dangornushi/schwarz
 
 #include <curses.h>
 #include <fstream>
