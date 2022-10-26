@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 #include <unistd.h>
+#include <iterator>
 
 #define BACK        0
 #define NOMAL       1
