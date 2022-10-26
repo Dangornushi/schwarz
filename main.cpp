@@ -110,7 +110,6 @@ void display() {
         if (LINES-1 <= i || gBuf.size() <= gPageEnd)
             break;
         if (*p != '\r') {
-            /*
             // if colour options are set
             switch(*p) {
                 case '#': {
@@ -122,6 +121,13 @@ void display() {
                     p--;
                     break;
                 }
+                default: {
+                    attrset(COLOR_PAIR(NOMAL));
+                    addch(*p);
+                    break;
+                }
+            }
+            /*
                 case '(':
                 case ')': {
                     attrset(COLOR_PAIR(PARENTHESES));
@@ -146,13 +152,12 @@ void display() {
                         j--;
                     } else {
                              */
-                        attrset(COLOR_PAIR(NOMAL));
-                        addch(*p);
                         /*
                     }
                 }
             }
                          */
+                        
             j += *p == '\t' ? 4 - (j & 3) : 1;
         }
         if (*p == '\n' || COLS <= j) {
@@ -390,7 +395,6 @@ void visualMode() {
         }
     }
 }
-rm -f .DS_Store
 
 void gotoLine() {
     char ch[100];
