@@ -9,7 +9,6 @@
 #include <unistd.h>
 #include <iterator>
 
-#define BACK        0
 #define NOMAL       1
 #define MACRO       2
 #define TYPE        3
@@ -17,6 +16,8 @@
 #define PARENTHESES 5
 #define BRACKETS    6
 #define VARIABLE    7
+#define RESERVED    8
+#define VFISUAL     0x8
 
 using namespace std;
 
@@ -44,9 +45,22 @@ bool gDone = false;
 int gIndex = 0 /* offset of cursor pos */, gPageStart = 0, gPageEnd = 0;
 int gCol, gRow;
 int w, h;
+int BACK = 0;
 int nowMode, nowLineNum = 1, renderingLineNum = 1, colorSet = 1;
 
-bool  split_token(string::iterator data, const char *word, int index) {
+void backChange(int back) {
+    // using 0x79
+    init_pair(NOMAL, 0x99, back);        // 黒地に白文字
+    init_pair(TYPE, 0x33, back);         // 黒地に水色文字
+    init_pair(MACRO, 0x20, back);        // 黒地に青文字
+    init_pair(NUMBER, 0x12, back);       // 黒地にオレンジ文字
+    init_pair(PARENTHESES, 0x88, back);  // 黒地に黄色文字
+    init_pair(BRACKETS, 0x21, back);     // 黒地に黄色文字
+    init_pair(VARIABLE, 0x74, back);     // 黒地に黄色文字
+    init_pair(RESERVED, 0xCF, back);     // 黒地にオレンジ文字
+}
+
+bool split_token(string::iterator data, const char *word, int index) {
      for (int i = 0; i < index; i++)
         if (data[i] != word[i])
             return false;
@@ -101,6 +115,7 @@ void display() {
     int i = 0, j = 0;
     gPageEnd = gPageStart;
 
+    int tokenCounter = 0, nowToken = 0;
 
     for (auto p = gBuf.begin() + gPageEnd; /*empty */; gPageEnd++, p++) {
         if (gIndex == gPageEnd) {
@@ -113,53 +128,64 @@ void display() {
         if (*p != '\r') {
             // if colour options are set
             switch(*p) {
-                case '#': {
-                    for (; *p != ' '; j++) {
-                        attrset(COLOR_PAIR(MACRO));
-                        addch(*p++);
-                        gPageEnd++;
-                    }
-                    p--;
-                    break;
-                }
-                default: {
-                    attrset(COLOR_PAIR(NOMAL));
-                    addch(*p);
-                    break;
-                }
-            }
-            /*
                 case '(':
                 case ')': {
                     attrset(COLOR_PAIR(PARENTHESES));
-                    addch(*p);
                     break;
                 }
                 case '{':
                 case '}': {
                     attrset(COLOR_PAIR(BRACKETS));
-                    addch(*p);
                     break;
                 }
                 default: {
-                    if (split_token(p, "int", 3)) {
+                    if (split_token(p, "int ", 4) ||
+                        (nowToken == TYPE && tokenCounter > 0)) {
+                        if (tokenCounter == 0) tokenCounter = 4;
+                        tokenCounter--;
+                        nowToken = TYPE;
                         attrset(COLOR_PAIR(TYPE));
-                        for (int i = 0; i < 3; i++, j++) {
-                            addch(*p++);
-                            gPageEnd++;
-                        }
-                        p--;
-                        gPageEnd--;
-                        j--;
+
+                    } else if (split_token(p, "char ", 5) ||
+                               (nowToken == TYPE && tokenCounter > 0)) {
+                        if (tokenCounter == 0) tokenCounter = 5;
+                        tokenCounter--;
+                        nowToken = TYPE;
+                        attrset(COLOR_PAIR(TYPE));
+                    } else if (split_token(p, "#include ", 9) ||
+                               (nowToken == MACRO && tokenCounter > 0)) {
+                        if (tokenCounter == 0) tokenCounter = 9;
+                        tokenCounter--;
+                        nowToken = MACRO;
+                        attrset(COLOR_PAIR(MACRO));
+
+                    } else if (split_token(p, "while ", 6) ||
+                               (nowToken == RESERVED && tokenCounter > 0)) {
+                        if (tokenCounter == 0) tokenCounter = 6;
+                        tokenCounter--;
+                        nowToken = RESERVED;
+                        attrset(COLOR_PAIR(RESERVED));
+                    } else if (split_token(p, "if ", 2) ||
+                               (nowToken == RESERVED && tokenCounter > 0)) {
+                        if (tokenCounter == 0) tokenCounter = 2;
+                        tokenCounter--;
+                        nowToken = RESERVED;
+                        attrset(COLOR_PAIR(RESERVED));
+                    } else if (split_token(p, "return ", 7) ||
+                               (nowToken == RESERVED && tokenCounter > 0)) {
+                        if (tokenCounter == 0) tokenCounter = 7;
+                        tokenCounter--;
+                        nowToken = RESERVED;
+                        attrset(COLOR_PAIR(RESERVED));
                     } else {
-                             */
-                        /*
+                        tokenCounter = 0;
+                        attrset(COLOR_PAIR(NOMAL));
                     }
+                    break;
                 }
             }
-                         */
-                        
-            j += *p == '\t' ? 4 - (j & 3) : 1;
+                    addch(*p);
+                    j += *p == '\t' ? 4 - (j & 3) : 1; 
         }
         if (*p == '\n' || COLS <= j) {
             ++i;
@@ -455,21 +481,14 @@ int main(int argc, char **argv) {
     }
     initscr();
     /*
-     * BLUE 0x12
-     * sky_blue 0x20
-     * sky_green 0x30
-     * white 0x99
+     * using 0x53
+     * background 0x8
      */
 
     // 色設
     start_color();
-    init_pair(NOMAL, 0x99, BACK);   // 黒地に白文字
-    init_pair(TYPE, 0x33, BACK);   // 黒地に水色文字
-    init_pair(MACRO, 0x20, COLOR_BLACK);   // 黒地に青文字
-    init_pair(BRACKETS, 0x21, COLOR_BLACK);   // 黒地に黄色文字
-    init_pair(PARENTHESES, 0x88, COLOR_BLACK);   // 黒地に黄色文字
-    init_pair(VARIABLE, 0x88, COLOR_BLACK);   // 黒地に黄色文字
-    init_pair(4, 0x12, COLOR_BLACK);   // 黒地にオレンジ文字
+    assume_default_colors(0, 0xE8);
+    backChange(0xE8);
     attrset(COLOR_PAIR(1));
     
     set_tabsize(4);
