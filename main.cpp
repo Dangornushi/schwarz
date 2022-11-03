@@ -67,6 +67,7 @@ int BACK = 0;
 int nowLineNum = 1;
 int renderingLineNum = 1;
 int colorSet = 1;
+bool classical;
 
 bool find(const string s, const vector<Token> v) {
     for (auto autoV : v)
@@ -157,8 +158,10 @@ void display() {
             gRow = i;
             gCol = j;
         } 
+
         if (LINES-1 <= i || gBuf.size() <= gPageEnd)
             break;
+
         if (*p != '\r') {
             // if colour options are set
             switch (*p) {
@@ -273,6 +276,7 @@ void display() {
     refresh(); 
 }
 
+// minimal Move Commands
 void left()      { if (gBuf[gIndex-1] != '\n' && gIndex > 0) --gIndex;}
 void right()     { if (gBuf[gIndex] != '\n') ++gIndex;}
 void up()        { gIndex = adjust(lineTop(lineTop(gIndex) - 1), gCol); (nowLineNum > 1) ? nowLineNum-- : 1;}
@@ -309,8 +313,7 @@ vector<Token> initPredictiveTransform() {
     return vec;
 }
 
-// 
-
+// 予測変換のサブウィンドウ
 vector<Token> predictiveWin(const string word, const vector<Token> vec, const int index) {
     int i = 0;
     int ignoreBuf = 0;
@@ -510,8 +513,10 @@ static void insertMode() {
 
     for (int ch;;display(), savetty()) {
         redraw();
-        newPredictive.clear();
-        newPredictive = predictiveWin(nowInputWord, predictive, viewIndex);
+        if (!classical) {
+            newPredictive.clear();
+            newPredictive = predictiveWin(nowInputWord, predictive, viewIndex);
+        }
 
         move(gRow, gCol);
 
@@ -527,10 +532,13 @@ static void insertMode() {
             viewIndex = -1;
         }
 
-        else if (ch == kCtrlN) { 
-            if (viewIndex <= -1) gBuf.erase(gBuf.begin() + (--gIndex));
+        else if (!classical && ch == kCtrlN) {
+            if (viewIndex > -1 && newPredictive[viewIndex].word != "" )  {
+                for (auto ch : newPredictive[viewIndex].word)
+                    gBuf.erase(gBuf.begin() + (--gIndex));
+            }
 
-            for (auto ch : newPredictive[viewIndex].word)
+            else
                 gBuf.erase(gBuf.begin() + (--gIndex));
 
             (viewIndex < newPredictive.size()-1) ? viewIndex++ : viewIndex = 0;
@@ -541,7 +549,7 @@ static void insertMode() {
             newPredictive.clear();
         }
 
-        else if (ch == kCtrlP) {
+        else if (!classical && ch == kCtrlP) {
 
             for (auto ch : newPredictive[viewIndex].word)
                 gBuf.erase(gBuf.begin() + (--gIndex));
@@ -556,7 +564,7 @@ static void insertMode() {
 
         else if ((ch>='a'&& ch<='z') || (ch>='A' && ch<='Z') || (ch>='0'&& ch<='9')) {
             gBuf.insert(gBuf.begin() + gIndex++, ch == '\r' ? '\n' : ch);
-            nowInputWord.push_back(ch);
+            (!classical) ? nowInputWord.push_back(ch) : void();
             /* 
             //DEBUG:
             clear();
@@ -577,12 +585,13 @@ static void insertMode() {
                 nowLineNum++;
             }
 
-
             viewIndex = -1;
-            predictive.push_back(Token{nowInputWord, NOMAL});
-            predictive.push_back(Token{"", 0});
-            nowInputWord.clear();
 
+            if (!classical) {
+                predictive.push_back(Token{nowInputWord, NOMAL});
+                predictive.push_back(Token{"", 0});
+                nowInputWord.clear();
+            }
         }
         usleep(5000);
     }
@@ -709,36 +718,48 @@ int main(int argc, char **argv) {
     if (argc < 2)
         return 2;
 
-    initscr();
+    classical = false;
+    //classical = true;
 
-    // 色設
-    start_color();
-    BACK = 0xEA;
-    assume_default_colors(0, BACK);
-    backChange(BACK);
-    attrset(COLOR_PAIR(1));
-    
+    // init
+    initscr();
     set_tabsize(4);
     raw();
     noecho();
     idlok(stdscr, true);  // init screen.
     getmaxyx(stdscr, h, w);
+    
+    // file
     gFileName = argv[1];
     ifstream ifs(gFileName, ios::binary);
     gBuf.assign(istreambuf_iterator<char>(ifs), istreambuf_iterator<char>());
     gUndoBuf = gBuf;
-    commandLineWord = "> ";
-    string nowToken;
-    for (auto data : gBuf) {
-        if ((data>='a'&& data<='z') || (data>='A' && data<='Z') || (data>='0'&& data<='9'))
-            nowToken.push_back(data);
 
-        else if (!find(nowToken, predictive)){
-            predictive.push_back(Token{nowToken, NOMAL});
-            predictive.push_back(Token{"", 0});
-            nowToken.clear();
+    commandLineWord = "> ";
+
+    // split token
+    if (!classical) {
+        // 色設
+        start_color();
+        BACK = 0xEA;
+        assume_default_colors(0, BACK);
+        backChange(BACK);
+        attrset(COLOR_PAIR(1));
+        string nowToken;
+        for (auto data : gBuf) {
+            if ((data >= 'a' && data <= 'z') || (data >= 'A' && data <= 'Z') ||
+                (data >= '0' && data <= '9'))
+                nowToken.push_back(data);
+
+            else if (!find(nowToken, predictive)) {
+                predictive.push_back(Token{nowToken, NOMAL});
+                predictive.push_back(Token{"", 0});
+                nowToken.clear();
+            }
         }
     }
+
+    // start
     while (!gDone) {
         display();
         char ch = getch();
