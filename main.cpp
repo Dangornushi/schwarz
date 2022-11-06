@@ -1,73 +1,15 @@
 // main.cpp   mushi's editor 2022.
-// compile: g++ -std=c++1z ae2019.cpp -lcurses
+// compile: g++ -std=c++1z main.cpp -lcurses
 // Github; Dangornushi/schwarz
+//DEBUG:
+/*
+clear();
+printw("%s\n", nowInputWord.c_str());
+refresh();
+exit(0);
+*/
 
-#include <curses.h>
-#include <fstream>
-#include <unordered_map>
-#include <vector>
-#include <map>
-#include <unistd.h>
-#include <iterator>
-
-#define NOMAL 1
-#define MACRO 2
-#define TYPE 3
-#define NUMBER 4
-#define PARENTHESES 5
-#define BRACKETS 6
-#define VARIABLE 7
-#define RESERVED 8
-#define OP 9
-#define COMMANDLINE 10
-#define STATUS 11
-#define SUBWIN 12
-#define SP_RESERVED 13
-#define VISUAL 0x8
-
-using namespace std;
-
-enum {
-    kESC = 27,
-    kBS = 8,
-    kDEL = 127,
-    kCtrlSpace = 0,
-    kCtrlD = 4,
-    kCtrlU = 21,
-    kEnter = 13,
-    kCtrlN = 14,
-    kCtrlP = 16,
-    kCtrlQ = 17,
-    kCtrlS = 19,
-    kCtrlR = 18,
-    VisualMode = 3,
-};
-
-typedef struct {
-    string word;
-    int type;
-} Token;
-
-
-static void insertMode();
-static void visualMode();
-const char *gFileName;
-
-vector<char> gBuf, gUndoBuf;
-vector<Token> initPredictiveTransform();
-vector<Token> predictive = initPredictiveTransform();
-string commandLineWord;
-string yankBuf;
-bool gDone = false;
-int gIndex = 0 /* offset of cursor pos */, gPageStart = 0, gPageEnd = 0;
-int gCol, gRow;
-int w, h;
-int nowMode;
-int BACK = 0;
-int nowLineNum = 1;
-int renderingLineNum = 1;
-int colorSet = 1;
-bool classical;
+#include "schwarz.hpp"
 
 bool find(const string s, const vector<Token> v) {
     for (auto autoV : v)
@@ -91,6 +33,7 @@ void backChange(int back) {
     init_pair(STATUS, 0xE1, 0x3C); 
     init_pair(SUBWIN, 0x69, 0x5A);                                    
     init_pair(SP_RESERVED, 0x1F, back);
+    init_pair(COMMENT, 0xF5, back);
 }
 
 bool split_token(string::iterator data, const char *word, int index) {
@@ -102,7 +45,9 @@ bool split_token(string::iterator data, const char *word, int index) {
 
 int lineTop(const int inOffset) {
     int offset = inOffset - 1;
-    while (offset >= 0 && gBuf[offset] != '\n') offset--;
+    while (offset >= 0 && gBuf[offset] != '\n') {
+        offset--;
+    }
     return offset <= 0 ? 0 : ++offset;
 }
 
@@ -114,13 +59,9 @@ int nextLineTop(const int inOffset) {
 
 int adjust(const int inOffset, const int inCol) {
     int offset = inOffset;
-    for (int i = 0; offset < gBuf.size() && gBuf[offset] != '\n' && i < inCol;offset++)
-        i += gBuf[offset] == '\t' ? 4 - (i & 3) : 1;
+    for (int i = 0; offset < gBuf.size() && gBuf[offset] != '\n' && i < inCol+nowLineBuf;offset++)
+        i += gBuf[offset] == '\t' ? 4 - (i & 3): 1;
     return offset;
-}
-
-auto putColor(std::__wrap_iter<char*>  p) {
-    return p;
 }
 
 void tokenPaint(int  *nowToken, int *tokenCounter, int len, int attribute) {
@@ -133,12 +74,16 @@ void tokenPaint(int  *nowToken, int *tokenCounter, int len, int attribute) {
 void display() {
     int howChangeStart = 0, howManyEnter = 0;
 
-    // 上にスクロール
-    if (gIndex <= gPageStart)
-        gPageStart = lineTop(gIndex);
+    // 上に移動
+    if (gIndex <= gPageStart) {
+        (gIndex > 0) ? LineStart-- : 0;
+        gPageStart = lineTop(gIndex); // 前のラインのインデックスを取得
+    }
 
-    // 下の行のデータを取得
+    // 下に移動
     if (gPageEnd <= gIndex) {
+        // 潜在的なバグ
+        (LineStart < gLines-(h-1)) ? LineStart++ : 0;
         gPageStart = nextLineTop(gIndex); // 次のラインのインデックスを取得 
         int n = LINES-1; // ファイル容量 - コマンド表示欄分マイナス 
 
@@ -147,16 +92,29 @@ void display() {
     }
 
     move(0, 0);
-    int i = 0, j = 0;
+    int i = 0;
+    int j = 0;
+    int c = 1;
+    int tokenCounter = 0;
+    int nowToken = 0;
+    int AllLineLength = to_string(gLines).size()+1;
+    string lineNumberString;
+
     gPageEnd = gPageStart;
 
-    int tokenCounter = 0, nowToken = 0;
+    lineNumberString = to_string(LineStart) + " ";
+    nowLineBuf = AllLineLength-lineNumberString.size()+1;
 
-    for (auto p = gBuf.begin() + gPageEnd; /*empty */; gPageEnd++, p++) {
+    for (;AllLineLength > lineNumberString.size();)
+        lineNumberString += " ";
+
+    printw("%s", lineNumberString.c_str());
+
+    for (auto p = gBuf.begin() + gPageEnd;; gPageEnd++, p++) {
         if (gIndex == gPageEnd) {
             // update cursor pos.
             gRow = i;
-            gCol = j;
+            gCol = j+nowLineBuf+1;
         } 
 
         if (LINES-1 <= i || gBuf.size() <= gPageEnd)
@@ -170,7 +128,6 @@ void display() {
                 case '+':
                 case '-':
                 case '*':
-                case '/':
                 case '=':
                 case '&':
                 case '$':
@@ -191,64 +148,33 @@ void display() {
                 default: {
                     if (isdigit(*p)) attrset(COLOR_PAIR(NUMBER));
 
-                    /* ===--- TYPE ---=== */
-                    else if (split_token(p, "int ", 4) ||
-                             (nowToken == TYPE && tokenCounter > 0))
-                        tokenPaint(&nowToken, &tokenCounter, 4, TYPE);
-
-                    else if (split_token(p, "char ", 5) ||
-                             (nowToken == TYPE && tokenCounter > 0))
-                        tokenPaint(&nowToken, &tokenCounter, 5, TYPE);
-
-                    /* ===--- MACRO ---=== */
-                    else if (split_token(p, "#define ", 8) ||
-                             (nowToken == MACRO && tokenCounter > 0))
-                        tokenPaint(&nowToken, &tokenCounter, 8, MACRO);
-
-                    else if (split_token(p, "#include ", 9) ||
-                             (nowToken == MACRO && tokenCounter > 0))
-                        tokenPaint(&nowToken, &tokenCounter, 9, MACRO);
-
-                    /* ===--- RESERVED ---=== */
-                    else if (split_token(p, "if ", 3) ||
-                             (nowToken == RESERVED && tokenCounter > 0))
-                        tokenPaint(&nowToken, &tokenCounter, 3, RESERVED);
-
-                    else if (split_token(p, "for ", 4) ||
-                             (nowToken == RESERVED && tokenCounter > 0))
-                        tokenPaint(&nowToken, &tokenCounter, 4, RESERVED);
-
-                    else if (split_token(p, "while ", 6) ||
-                             (nowToken == RESERVED && tokenCounter > 0))
-                        tokenPaint(&nowToken, &tokenCounter, 6, RESERVED);
-
-                    else if (split_token(p, "return ", 7) ||
-                             (nowToken == RESERVED && tokenCounter > 0))
-                        tokenPaint(&nowToken, &tokenCounter, 7, RESERVED);
-
-                    /* ===--- SP_RESERVED ---=== */
-                    else if ((split_token(p, "printf", 6) ||
-                              split_token(p, "using ", 6) ||
-                              (split_token(p, "class ", 6))) ||
-                             (nowToken == SP_RESERVED && tokenCounter > 0))
-                        tokenPaint(&nowToken, &tokenCounter, 6, SP_RESERVED);
-
-                    else if (split_token(p, "def ", 4) ||
-                             (nowToken == SP_RESERVED && tokenCounter > 0))
-                        tokenPaint(&nowToken, &tokenCounter, 4, SP_RESERVED);
-
-                    /* ===--- ELSE ---=== */
                     else {
-                        tokenCounter = 0;
-                        attrset(COLOR_PAIR(NOMAL));
+                        vector<Token> vec = initPredictiveTransform();
+                        for (auto v : vec) {
+                            if (split_token(p, v.word.c_str(), v.word.size()) ||
+                                (nowToken == v.type && tokenCounter > 0)) {
+                                tokenPaint(&nowToken, &tokenCounter, v.word.size(), v.type);
+                                break;
+                            }
+                            attrset(COLOR_PAIR(NOMAL));
+                        }
                     }
                     break;
                 }
             }
-            addch(*p);
-            j += *p == '\t' ? 4 - (j & 3) : 1;
+
+            if (*p == '\t')
+                printw("    ");
+            else
+                addch(*p);
+
+            j += *p == '\t' ? 4 - (j & 3)+nowLineBuf-2 : 1;
         }
         if (*p == '\n' || COLS <= j) {
+            lineNumberString = to_string(LineStart + c++) + " ";
+
+            for (; AllLineLength > lineNumberString.size();lineNumberString += " ");
+            printw("%s", lineNumberString.c_str());
             ++i;
             j = 0;
         }
@@ -267,8 +193,10 @@ void display() {
     attrset(COLOR_PAIR(STATUS));
     mvaddstr(i, 0, commandLineWord.c_str());
     attrset(COLOR_PAIR(COMMANDLINE));
+
     for (auto j=commandLineWord.size(); j < COLS - cursorRow.size();)
         mvaddstr(i, j++, " ");
+
     attrset(COLOR_PAIR(STATUS));
     mvaddstr(i, COLS - cursorRow.size(), cursorRow.c_str());
     clrtobot();
@@ -277,38 +205,46 @@ void display() {
 }
 
 // minimal Move Commands
-void left()      { if (gBuf[gIndex-1] != '\n' && gIndex > 0) --gIndex;}
-void right()     { if (gBuf[gIndex] != '\n') ++gIndex;}
-void up()        { gIndex = adjust(lineTop(lineTop(gIndex) - 1), gCol); (nowLineNum > 1) ? nowLineNum-- : 1;}
-void down()      { gIndex = adjust(nextLineTop(gIndex), gCol); (gIndex < gBuf.size()-1) ? nowLineNum++ : 1;}
+void left()      { if (gCol > nowLineBuf && gBuf[gIndex-1] != '\n') --gIndex;}
+void right()     { if (gCol < nowLineBuf && gBuf[gIndex+nowLineBuf-2] != '\n') ++gIndex;}
+void up()        { gIndex = adjust(lineTop(lineTop(gIndex) - 1), gCol); (nowLineNum > 1) ? nowLineNum-- : 1;}// nowlineNum-- <- 行数を一つマイナス
+void down()      { gIndex = adjust(nextLineTop(gIndex), gCol); (gIndex < gBuf.size()-1) ? nowLineNum++ : 1;} // nowlineNum++ <- 行数を一つ追加
 void lineBegin() { gIndex = lineTop(gIndex); }
 void lineEnd()   { while (gBuf[gIndex] != '\n') gIndex++;}// nextLineTop(gIndex);}
 void top()       { gIndex = 0; }
 void bottom()    { gIndex = gBuf.size() - 1; }
 void del()       { if (gIndex < gBuf.size() - 1) gBuf.erase(gBuf.begin() + gIndex);}
 void quit()      { gDone = true; }
-
-void redraw() {
-    clear();
-    display();
-}
+void redraw()    { clear(); display(); }
 
 vector<Token> initPredictiveTransform() {
     vector<Token> vec {
-        Token {"#define", MACRO},
-        Token {"#include", MACRO},
-        Token {"char", TYPE},
-        Token {"const", SP_RESERVED},
-        Token {"else", RESERVED},
-        Token {"elif", RESERVED},
-        Token {"for", RESERVED},
-        Token {"if", RESERVED},
-        Token {"int", TYPE},
-        Token {"map", TYPE},
-        Token {"return", RESERVED},
-        Token {"void", TYPE},
-        Token {"vector", TYPE},
-        Token {"while", RESERVED},
+        // all
+        Token {"else ", RESERVED},
+        Token {"if ", RESERVED},
+        Token {"int ", TYPE},
+        Token {"return ", RESERVED},
+        Token {"for ", RESERVED},
+        Token {"void ", TYPE},
+        Token {"while ", RESERVED},
+        Token {"class ", RESERVED},
+
+        // C/C++
+        Token {"char ", TYPE},
+        Token {"const ", SP_RESERVED},
+        Token {"map ", TYPE},
+        Token {"vector ", TYPE},
+        Token {"#define ", MACRO},
+        Token {"#include ", MACRO},
+        Token {"printf", RESERVED},
+
+        // Python
+        Token {"elif ", RESERVED},
+        Token {"lamda ", RESERVED},
+        Token {"def ", RESERVED},
+        Token {"__init__ ", RESERVED},
+        Token {"__main__ ", RESERVED},
+        Token {"self", TYPE},
     };
     return vec;
 }
@@ -321,6 +257,9 @@ vector<Token> predictiveWin(const string word, const vector<Token> vec, const in
     bool ok = false;
     string data;
     vector<Token> newVec;
+
+    if (vec.size() < index+1)
+        return vec;
 
     savetty();
 
@@ -439,17 +378,56 @@ void renderingNowLine() {
 }
 
 
-int index(string word, const vector<char> vec) {
-    int v=0;
+int index(const string word, const vector<char> vec) {
+    int v = gIndex;
     bool passd = false;
 
+    for (;v < vec.size();) {
+        for (int i = 0; i<word.size()-1;i++) {
+            passd = true;
+
+            if (vec[v++] != word[i]) {
+                passd = false;
+                break;
+            }
+        }
+
+        if (passd) return v;
+    }
     return 0;
 }
 
 void wordJump() {
+    
+    string jumpWordBuf;
+    int jumpWordIndex = 0;
 
-    int i = index("main", gBuf);
-    gIndex = (i > 0) ? i : gIndex;
+    for (int ch;;display(), savetty()) {
+        if ((ch = getch()) == kESC) {
+            break;
+        }
+
+        else if (jumpWordIndex > 0 && (ch == kBS || ch == kDEL)) {
+            jumpWordBuf.erase(jumpWordBuf.begin() + (--jumpWordIndex));
+            nowLineNum--;
+        }
+
+        else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+                 (ch >= '0' && ch <= '9') || (ch == '_')) {
+            jumpWordBuf.insert(jumpWordBuf.begin() + jumpWordIndex++, ch == '\r' ? '\n' : ch);
+        }
+
+        else {
+            jumpWordBuf.insert(jumpWordBuf.begin() + jumpWordIndex++, ch);
+
+            if (ch == '\n') {
+                break;
+            }
+
+        }
+        commandLineWord = jumpWordBuf;
+    }
+    gIndex = index(jumpWordBuf, gBuf);
     redraw();
 }
 
@@ -466,8 +444,7 @@ void commandMode() {
         quit();
     if (ch == 'l')
         renderingNowLine();
-    if (ch == '/')
-        wordJump();
+//    if (ch == '/')
 
     commandLineWord = before_commandLineWord;
     redraw();
@@ -506,7 +483,7 @@ static void insertMode() {
     commandLineWord = "! insert !";
     redraw();
     int viewIndex = -1;
-    int tmpBuf;
+    int tmpBuf, tmpIndex=gIndex;
     bool tabStart = false;
     string nowInputWord;
     vector<Token> newPredictive;
@@ -533,23 +510,31 @@ static void insertMode() {
         }
 
         else if (!classical && ch == kCtrlN) {
-            if (viewIndex > -1 && newPredictive[viewIndex].word != "" )  {
-                for (auto ch : newPredictive[viewIndex].word)
-                    gBuf.erase(gBuf.begin() + (--gIndex));
-            }
+
+            if (viewIndex == -1)
+                // CtrlNの一番上
+                for (int i = gIndex; i > tmpIndex; i--, gIndex--)
+                    gBuf.erase(gBuf.begin() + gIndex - 1);
 
             else
-                gBuf.erase(gBuf.begin() + (--gIndex));
+                // 一番上以外
+                for (int i = 0; i < newPredictive[viewIndex].word.size(); i++)
+                    gBuf.erase(gBuf.begin() + (gIndex--) - 1);
 
-            (viewIndex < newPredictive.size()-1) ? viewIndex++ : viewIndex = 0;
+            (viewIndex < newPredictive.size()) ? viewIndex++ : viewIndex = 0;
 
-            for (auto ch : newPredictive[viewIndex].word)
-                gBuf.insert(gBuf.begin() + gIndex++, ch == '\r' ? '\n' : ch);
+            for (int i = 0; i < newPredictive[viewIndex].word.size(); i++)
+                gBuf.insert(gBuf.begin() + gIndex++,
+                            newPredictive[viewIndex].word[i] == '\r'
+                                ? '\n'
+                                : newPredictive[viewIndex].word[i]);
 
             newPredictive.clear();
         }
 
         else if (!classical && ch == kCtrlP) {
+            if (newPredictive.size() < viewIndex)
+                continue;
 
             for (auto ch : newPredictive[viewIndex].word)
                 gBuf.erase(gBuf.begin() + (--gIndex));
@@ -560,19 +545,12 @@ static void insertMode() {
                 gBuf.insert(gBuf.begin() + gIndex++, ch == '\r' ? '\n' : ch);
 
             newPredictive.clear();
-        } 
+        }
 
-        else if ((ch>='a'&& ch<='z') || (ch>='A' && ch<='Z') || (ch>='0'&& ch<='9')) {
+        else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+                 (ch >= '0' && ch <= '9') || (ch == '_')) {
             gBuf.insert(gBuf.begin() + gIndex++, ch == '\r' ? '\n' : ch);
             (!classical) ? nowInputWord.push_back(ch) : void();
-            /* 
-            //DEBUG:
-            clear();
-            printw("%s\n", nowInputWord.c_str());
-            refresh();
-            exit(0);
-            */
-
         }
 
         else {
@@ -584,16 +562,16 @@ static void insertMode() {
                    : std::vector<char>::iterator();
                 nowLineNum++;
             }
+            tmpIndex = gIndex;
 
             viewIndex = -1;
 
             if (!classical) {
                 predictive.push_back(Token{nowInputWord, NOMAL});
-                predictive.push_back(Token{"", 0});
+                //predictive.push_back(Token{"", 0});
                 nowInputWord.clear();
             }
         }
-        usleep(5000);
     }
     resetty();
     commandLineWord = " NOMAL ";
@@ -709,10 +687,14 @@ unordered_map<char, void (*)()> gAction = {
     {'H', gotoUp},      {'L', gotoDown},
     {'f', commandMode}, {':', commandMode}, {' ', commandMode},
     {'d', del},         {'c', lineBegin},   {'w', oneWordMove},
-    {'b', oneWordBack}, {'/', gotoLine},    {'v', visualMode},
+    {'b', oneWordBack}, {'/', wordJump},    {'v', visualMode},
     {'p', paste},       {'a', addInsert},   {'u', undo},
 
 };
+
+bool isChar(char data) {
+    return (data >= 'a' && data <= 'z') || (data >= 'A' && data <= 'Z') || (data >= '0' && data <= '9') ? true : false;
+}
 
 int main(int argc, char **argv) {
     if (argc < 2)
@@ -735,7 +717,7 @@ int main(int argc, char **argv) {
     gBuf.assign(istreambuf_iterator<char>(ifs), istreambuf_iterator<char>());
     gUndoBuf = gBuf;
 
-    commandLineWord = "> ";
+    commandLineWord = " NOMAL ";
 
     // split token
     if (!classical) {
@@ -747,9 +729,11 @@ int main(int argc, char **argv) {
         attrset(COLOR_PAIR(1));
         string nowToken;
         for (auto data : gBuf) {
-            if ((data >= 'a' && data <= 'z') || (data >= 'A' && data <= 'Z') ||
-                (data >= '0' && data <= '9'))
+            if (isChar(data))
                 nowToken.push_back(data);
+
+            if (data == '\n')
+                gLines++;
 
             else if (!find(nowToken, predictive)) {
                 predictive.push_back(Token{nowToken, NOMAL});
