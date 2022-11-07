@@ -121,7 +121,7 @@ void display() {
             break;
 
         if (*p != '\r') {
-            // if colour options are set
+            // if the colour options was set
             switch (*p) {
                 case '<':
                 case '>':
@@ -145,10 +145,9 @@ void display() {
                     attrset(COLOR_PAIR(BRACKETS));
                     break;
 
-                default: {
-                    if (isdigit(*p)) attrset(COLOR_PAIR(NUMBER));
+                default: { 
 
-                    else {
+                    if (!isdigit(*p)) {
                         vector<Token> vec = initPredictiveTransform();
                         for (auto v : vec) {
                             if (split_token(p, v.word.c_str(), v.word.size()) ||
@@ -159,14 +158,12 @@ void display() {
                             attrset(COLOR_PAIR(NOMAL));
                         }
                     }
+                    else attrset(COLOR_PAIR(NUMBER));
                     break;
                 }
             }
 
-            if (*p == '\t')
-                printw("    ");
-            else
-                addch(*p);
+            (*p == '\t') ? printw("    ") : addch(*p);
 
             j += *p == '\t' ? 4 - (j & 3)+nowLineBuf-2 : 1;
         }
@@ -181,6 +178,7 @@ void display() {
     }
 
     attrset(COLOR_PAIR(NOMAL));
+
     for (;i < h-1;i++)
         mvaddstr(i, 0, "~");
 
@@ -217,6 +215,7 @@ void del()       { if (gIndex < gBuf.size() - 1) gBuf.erase(gBuf.begin() + gInde
 void quit()      { gDone = true; }
 void redraw()    { clear(); display(); }
 
+// TAG: Color
 vector<Token> initPredictiveTransform() {
     vector<Token> vec {
         // all
@@ -249,6 +248,7 @@ vector<Token> initPredictiveTransform() {
     return vec;
 }
 
+// TAG: predict
 // 予測変換のサブウィンドウ
 vector<Token> predictiveWin(const string word, const vector<Token> vec, const int index) {
     int i = 0;
@@ -283,6 +283,7 @@ vector<Token> predictiveWin(const string word, const vector<Token> vec, const in
     return newVec;
 }
 
+// TAG: Mov
 // Command
 void wordLeft() {
     while (!isspace(gBuf[gIndex]) && 0 < gIndex)
@@ -292,6 +293,7 @@ void wordLeft() {
         --gIndex;
 }
 
+// TAG: Mov
 void wordRight() {
     while (!isspace(gBuf[gIndex]) && gIndex < gBuf.size())
         ++gIndex;
@@ -299,6 +301,7 @@ void wordRight() {
         ++gIndex;
 }
 
+// TAG: Mov
 void pageDown() {
     gPageStart = gIndex = lineTop(gPageEnd - 1);
     while (0 < gRow--)
@@ -306,6 +309,8 @@ void pageDown() {
 
     gPageEnd = gBuf.size() - 1;
 }
+
+// TAG: Mov
 void pageUp() {
     for (int i = LINES; 0 < --i; up())
         gPageStart = lineTop(gPageStart - 1);
