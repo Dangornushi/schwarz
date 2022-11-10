@@ -10,212 +10,38 @@ exit(0);
 */
 
 #include "schwarz.hpp"
+#include "move.hpp"
+#include "util.hpp"
+#include "finder.hpp"
 
-bool find(const string s, const vector<Token> v) {
-    for (auto autoV : v)
-        if (s == autoV.word)
-            return true;
-    return false;
-}
+const char *gFileName;
 
-void backChange(int back) {
-    // using 0x79
-    init_pair(NOMAL, 0x69, back);        // 黒地に白文字
-    init_pair(TYPE, 0x33, back);         // 黒地に水色文字
-    init_pair(MACRO, 0x38, back);        // 黒地に青文字
-    init_pair(NUMBER, 0xCA, back);       // 黒地にオレンジ文字
-    init_pair(PARENTHESES, 0x4B, back);  // 黒地に黄色文字
-    init_pair(BRACKETS, 0xE2, back);     // 黒地に黄色文字
-    init_pair(VARIABLE, 0x74, back);     // 黒地に黄色文字
-    init_pair(RESERVED, 0xD5, back);     // 黒地にオレンジ文字
-    init_pair(OP, 0x9D, back);     // 黒地にオレンジ文字
-    init_pair(COMMANDLINE, 0xE1, 0xEC);  
-    init_pair(STATUS, 0xE1, 0x3C); 
-    init_pair(SUBWIN, 0x69, 0x5A);                                    
-    init_pair(SP_RESERVED, 0x1F, back);
-    init_pair(COMMENT, 0xF5, back);
-}
+vector<Token> predictive = initPredictiveTransform();
+vector<char> gBuf, gUndoBuf;
+vector<string> finderData;
+string commandLineWord;
+string yankBuf;
 
-bool split_token(string::iterator data, const char *word, int index) {
-     for (int i = 0; i < index; i++)
-        if (data[i] != word[i])
-            return false;
-    return true;
-}
+bool gDone = false;
+int gIndex = 0 /* offset of cursor pos */;
+int gPageStart = 0;
+int gPageEnd = 0;
+int gLines = 0;
+int gCol, gRow;
 
-int lineTop(const int inOffset) {
-    int offset = inOffset - 1;
-    while (offset >= 0 && gBuf[offset] != '\n') {
-        offset--;
-    }
-    return offset <= 0 ? 0 : ++offset;
-}
+int nowLineNum = 1, LineStart = 0, LineEnd = 0;
+int w, h;
 
-int nextLineTop(const int inOffset) {
-    int offset = inOffset;
-    while (offset < gBuf.size() && gBuf[offset++] != '\n') { /* empty */ }
-    return offset < gBuf.size() ? offset : gBuf.size() - 1;
-}
+int nowMode = NOMAL_MODE;
+int BACK = 0;
+int renderingLineNum = 1;
+int colorSet = 1;
+int nowLineBuf;
+bool classical;
+bool finderSwitch;
 
-int adjust(const int inOffset, const int inCol) {
-    int offset = inOffset;
-    for (int i = 0; offset < gBuf.size() && gBuf[offset] != '\n' && i < inCol+nowLineBuf;offset++)
-        i += gBuf[offset] == '\t' ? 4 - (i & 3): 1;
-    return offset;
-}
 
-void tokenPaint(int  *nowToken, int *tokenCounter, int len, int attribute) {
-    if (*tokenCounter == 0) *tokenCounter = len;
-    (*tokenCounter)--;
-    *nowToken = attribute;
-    attrset(COLOR_PAIR(attribute));
-}
-
-void display() {
-    int howChangeStart = 0, howManyEnter = 0;
-
-    // 上に移動
-    if (gIndex <= gPageStart) {
-        (gIndex > 0) ? LineStart-- : 0;
-        gPageStart = lineTop(gIndex); // 前のラインのインデックスを取得
-    }
-
-    // 下に移動
-    if (gPageEnd <= gIndex) {
-        // 潜在的なバグ
-        (LineStart < gLines-(h-1)) ? LineStart++ : 0;
-        gPageStart = nextLineTop(gIndex); // 次のラインのインデックスを取得 
-        int n = LINES-1; // ファイル容量 - コマンド表示欄分マイナス 
-
-        for (int i = 0; i < n; i++)
-            gPageStart = lineTop(gPageStart - 1);
-    }
-
-    move(0, 0);
-    int i = 0;
-    int j = 0;
-    int c = 1;
-    int tokenCounter = 0;
-    int nowToken = 0;
-    int AllLineLength = to_string(gLines).size()+1;
-    string lineNumberString;
-
-    gPageEnd = gPageStart;
-
-    lineNumberString = to_string(LineStart) + " ";
-    nowLineBuf = AllLineLength-lineNumberString.size()+1;
-
-    for (;AllLineLength > lineNumberString.size();)
-        lineNumberString += " ";
-
-    printw("%s", lineNumberString.c_str());
-
-    for (auto p = gBuf.begin() + gPageEnd;; gPageEnd++, p++) {
-        if (gIndex == gPageEnd) {
-            // update cursor pos.
-            gRow = i;
-            gCol = j+nowLineBuf+1;
-        } 
-
-        if (LINES-1 <= i || gBuf.size() <= gPageEnd)
-            break;
-
-        if (*p != '\r') {
-            // if the colour options was set
-            switch (*p) {
-                case '<':
-                case '>':
-                case '+':
-                case '-':
-                case '*':
-                case '=':
-                case '&':
-                case '$':
-                case '%':
-                    attrset(COLOR_PAIR(OP));
-                    break;
-
-                case '(':
-                case ')':
-                    attrset(COLOR_PAIR(PARENTHESES));
-                    break;
-
-                case '{':
-                case '}':
-                    attrset(COLOR_PAIR(BRACKETS));
-                    break;
-
-                default: { 
-
-                    if (!isdigit(*p)) {
-                        vector<Token> vec = initPredictiveTransform();
-                        for (auto v : vec) {
-                            if (split_token(p, v.word.c_str(), v.word.size()) ||
-                                (nowToken == v.type && tokenCounter > 0)) {
-                                tokenPaint(&nowToken, &tokenCounter, v.word.size(), v.type);
-                                break;
-                            }
-                            attrset(COLOR_PAIR(NOMAL));
-                        }
-                    }
-                    else attrset(COLOR_PAIR(NUMBER));
-                    break;
-                }
-            }
-
-            (*p == '\t') ? printw("    ") : addch(*p);
-
-            j += *p == '\t' ? 4 - (j & 3)+nowLineBuf-2 : 1;
-        }
-        if (*p == '\n' || COLS <= j) {
-            lineNumberString = to_string(LineStart + c++) + " ";
-
-            for (; AllLineLength > lineNumberString.size();lineNumberString += " ");
-            printw("%s", lineNumberString.c_str());
-            ++i;
-            j = 0;
-        }
-    }
-
-    attrset(COLOR_PAIR(NOMAL));
-
-    for (;i < h-1;i++)
-        mvaddstr(i, 0, "~");
-
-    if (gRow < LINES-1)
-        gRow += howChangeStart;
-
-    string fileName = gFileName;
-    string cursorRow = " " + fileName + " " + to_string(nowLineNum) + "*" + to_string(gCol+1) + " ";
-
-    attrset(COLOR_PAIR(STATUS));
-    mvaddstr(i, 0, commandLineWord.c_str());
-    attrset(COLOR_PAIR(COMMANDLINE));
-
-    for (auto j=commandLineWord.size(); j < COLS - cursorRow.size();)
-        mvaddstr(i, j++, " ");
-
-    attrset(COLOR_PAIR(STATUS));
-    mvaddstr(i, COLS - cursorRow.size(), cursorRow.c_str());
-    clrtobot();
-    move(gRow, gCol);
-    refresh(); 
-}
-
-// minimal Move Commands
-void left()      { if (gCol > nowLineBuf && gBuf[gIndex-1] != '\n') --gIndex;}
-void right()     { if (gCol < nowLineBuf && gBuf[gIndex+nowLineBuf-2] != '\n') ++gIndex;}
-void up()        { gIndex = adjust(lineTop(lineTop(gIndex) - 1), gCol); (nowLineNum > 1) ? nowLineNum-- : 1;}// nowlineNum-- <- 行数を一つマイナス
-void down()      { gIndex = adjust(nextLineTop(gIndex), gCol); (gIndex < gBuf.size()-1) ? nowLineNum++ : 1;} // nowlineNum++ <- 行数を一つ追加
-void lineBegin() { gIndex = lineTop(gIndex); }
-void lineEnd()   { while (gBuf[gIndex] != '\n') gIndex++;}// nextLineTop(gIndex);}
-void top()       { gIndex = 0; }
-void bottom()    { gIndex = gBuf.size() - 1; }
-void del()       { if (gIndex < gBuf.size() - 1) gBuf.erase(gBuf.begin() + gIndex);}
-void quit()      { gDone = true; }
-void redraw()    { clear(); display(); }
-
-// TAG: Color
+// TAG: Tokens
 vector<Token> initPredictiveTransform() {
     vector<Token> vec {
         // all
@@ -231,8 +57,10 @@ vector<Token> initPredictiveTransform() {
         // C/C++
         Token {"char ", TYPE},
         Token {"const ", SP_RESERVED},
-        Token {"map ", TYPE},
-        Token {"vector ", TYPE},
+        Token {"map", TYPE},
+        Token {"vector", TYPE},
+        Token {"bool ", TYPE},
+        Token {"string ", TYPE},
         Token {"#define ", MACRO},
         Token {"#include ", MACRO},
         Token {"printf", RESERVED},
@@ -273,7 +101,7 @@ vector<Token> predictiveWin(const string word, const vector<Token> vec, const in
             if (index+ignoreBuf == j)
                 attrset(COLOR_PAIR(STATUS));
 
-            mvaddstr(gRow + ++i, gCol, data.c_str());
+            mvaddstr(gRow + ++i, gCol+nowLineBuf, data.c_str());
             newVec.push_back(Token{data, type});
         }
         else ignoreBuf++;
@@ -281,82 +109,6 @@ vector<Token> predictiveWin(const string word, const vector<Token> vec, const in
     resetty();
 
     return newVec;
-}
-
-// TAG: Mov
-// Command
-void wordLeft() {
-    while (!isspace(gBuf[gIndex]) && 0 < gIndex)
-        --gIndex;
-
-    while (isspace(gBuf[gIndex]) && 0 < gIndex)
-        --gIndex;
-}
-
-// TAG: Mov
-void wordRight() {
-    while (!isspace(gBuf[gIndex]) && gIndex < gBuf.size())
-        ++gIndex;
-    while (isspace(gBuf[gIndex]) && gIndex < gBuf.size())
-        ++gIndex;
-}
-
-// TAG: Mov
-void pageDown() {
-    gPageStart = gIndex = lineTop(gPageEnd - 1);
-    while (0 < gRow--)
-        down();
-
-    gPageEnd = gBuf.size() - 1;
-}
-
-// TAG: Mov
-void pageUp() {
-    for (int i = LINES; 0 < --i; up())
-        gPageStart = lineTop(gPageStart - 1);
-}
-
-void gotoUp() {
-    gIndex = adjust(gPageStart, 0);
-}
-
-void gotoDown() {
-    gIndex = adjust(gPageEnd-1, 0);
-}
-
-void oneWordMove() {
-    while (gBuf[gIndex+2] != ' ' || gBuf[gIndex+2] != '\t' || gBuf[gIndex+2] != '\n') 
-        gIndex++;
-}
-void oneWordBack() {
-    while (gBuf[gIndex-1] != ' ' || gBuf[gIndex-1] != '\t' || gBuf[gIndex-1] != '\n')
-        gIndex--;
-}
-
-void gotoLine() {
-    char ch[100];
-    char input;
-    getstr(ch);
-    string commandLineNumber = ch;
-    int wantToGoLine = stoi(commandLineNumber);
-    gIndex = 0;
-
-    commandLineWord = "go to: Line " + commandLineNumber;
-    redraw();
-
-    input = getch();
-
-    if (input != '\n') {
-        commandLineWord = "! Canceled !";
-        redraw();
-        return;
-    }
-
-    for (int followLine = 1; followLine < wantToGoLine; gIndex++)
-        (gBuf[gIndex] == '\n') ? followLine++ : 0;
-
-    commandLineWord = "jump to: Line " + commandLineNumber;
-    redraw();
 }
 
 // no move
@@ -375,31 +127,11 @@ void renderingNowLine() {
 
     attrset(COLOR_PAIR(SUBWIN));
     mvaddstr(gRow+1, gCol, number.c_str());
-    move(gRow, gCol);
+    move(gRow, gCol+nowLineBuf);
     refresh();
     getch();
 
     resetty();
-}
-
-
-int index(const string word, const vector<char> vec) {
-    int v = gIndex;
-    bool passd = false;
-
-    for (;v < vec.size();) {
-        for (int i = 0; i<word.size()-1;i++) {
-            passd = true;
-
-            if (vec[v++] != word[i]) {
-                passd = false;
-                break;
-            }
-        }
-
-        if (passd) return v;
-    }
-    return 0;
 }
 
 void wordJump() {
@@ -408,9 +140,8 @@ void wordJump() {
     int jumpWordIndex = 0;
 
     for (int ch;;display(), savetty()) {
-        if ((ch = getch()) == kESC) {
+        if ((ch = getch()) == kESC)
             break;
-        }
 
         else if (jumpWordIndex > 0 && (ch == kBS || ch == kDEL)) {
             jumpWordBuf.erase(jumpWordBuf.begin() + (--jumpWordIndex));
@@ -418,26 +149,26 @@ void wordJump() {
         }
 
         else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-                 (ch >= '0' && ch <= '9') || (ch == '_')) {
+                 (ch >= '0' && ch <= '9') || (ch == '_'))
             jumpWordBuf.insert(jumpWordBuf.begin() + jumpWordIndex++, ch == '\r' ? '\n' : ch);
-        }
 
         else {
             jumpWordBuf.insert(jumpWordBuf.begin() + jumpWordIndex++, ch);
 
-            if (ch == '\n') {
+            if (ch == '\n')
                 break;
-            }
 
         }
         commandLineWord = jumpWordBuf;
     }
-    gIndex = index(jumpWordBuf, gBuf);
+    /*gIndex = */
+        index(jumpWordBuf, gBuf);
     redraw();
 }
 
 // Command input
 void commandMode() {
+    nowMode = COMMAND_MODE;
     string before_commandLineWord = commandLineWord;
     commandLineWord = "> ";
     redraw();
@@ -449,9 +180,9 @@ void commandMode() {
         quit();
     if (ch == 'l')
         renderingNowLine();
-//    if (ch == '/')
 
     commandLineWord = before_commandLineWord;
+    nowMode = NOMAL_MODE;
     redraw();
 }
 
@@ -469,22 +200,21 @@ void lineDel() {
         ++moveDiff;
         yankBuf.push_back(gBuf[gIndex]);
     }
-    for (int i = 0; i < gCol; i++) {
+    for (int i = 0; i < gCol; i++)
         yankBuf.push_back(gBuf[gIndex++]);
-    }
     */
 }
 
 template <typename T>
 void slice(std::vector<T> &v, int m, int n) {
     auto first = v.cbegin() + m;
-    auto last = v.cbegin() + n + 1;
- 
+    auto last = v.cbegin() + n + 1; 
     v.erase(first, last);
 }
 
 // insertMode 
-static void insertMode() {
+void insertMode() {
+    nowMode = INSERT_MODE;
     commandLineWord = "! insert !";
     redraw();
     int viewIndex = -1;
@@ -500,7 +230,7 @@ static void insertMode() {
             newPredictive = predictiveWin(nowInputWord, predictive, viewIndex);
         }
 
-        move(gRow, gCol);
+        move(gRow, gCol+nowLineBuf);
 
         if ((ch = getch()) == kESC) {
             viewIndex = -1;
@@ -509,7 +239,7 @@ static void insertMode() {
 
         else if (gIndex > 0 && (ch == kBS || ch == kDEL)) {
             gBuf.erase(gBuf.begin() + (--gIndex));
-            if (nowInputWord.size() > 0)nowInputWord.resize(nowInputWord.size()-1);
+                if (nowInputWord.size() > 0)nowInputWord.resize(nowInputWord.size()-1);
             nowLineNum--;
             viewIndex = -1;
         }
@@ -579,11 +309,12 @@ static void insertMode() {
         }
     }
     resetty();
+    nowMode = NOMAL_MODE;
     commandLineWord = " NOMAL ";
 }
 
 // visualMode
-static void visualMode() {
+void visualMode() {
     nowMode = VisualMode;
     int moveDiff = 0;
     int base_gCol;
@@ -599,17 +330,19 @@ static void visualMode() {
             case 'h': {
                 (--moveDiff > 0) ? yankBuf.resize(yankBuf.size() - 1)
                                  : yankBuf.push_back(gBuf[gIndex]);
-                gIndex--;
+
+                if (gIndex > 0) gIndex--;
                 break;
             }
 
             case 'j': {
                 int tmp_gIndex = gIndex;
-                for (;gBuf[gIndex] != '\n';) {gIndex++;};
+                for (;gBuf[gIndex] != '\n';)
+					gIndex++;
                 gIndex++;
 
                 int i = 0;
-                for (;tmp_gIndex < gIndex; ++moveDiff, i++)
+                for (;tmp_gIndex < gIndex && gIndex > 0; ++moveDiff, i++)
                     yankBuf.push_back(gBuf[gIndex--]);
 
                 gIndex += i;
@@ -622,7 +355,8 @@ static void visualMode() {
                 int tmp_gIndex = gIndex;
                 int i = 0;
 
-                for (;gBuf[gIndex-1] != '\n';) {gIndex--;};
+                for (;gBuf[gIndex-1] != '\n';) 
+					gIndex--;
                 gIndex--;
 
                 for (;gIndex < tmp_gIndex; --moveDiff, i++)
@@ -643,7 +377,8 @@ static void visualMode() {
 
             case 'y': {
                 yankBuf.push_back(gBuf[gIndex]);
-                if (moveDiff <= 0) reverse(yankBuf.begin(), yankBuf.end());
+                if (moveDiff <= 0)
+					reverse(yankBuf.begin(), yankBuf.end());
                 return;
             }
 
@@ -664,7 +399,7 @@ static void visualMode() {
 }
 
 void paste() {
-    reverse(yankBuf.begin(), yankBuf.end());
+    //reverse(yankBuf.begin(), yankBuf.end());
     for (auto ch : yankBuf)
         gBuf.insert(gBuf.begin() + gIndex++, ch == '\r' ? '\n' : ch);
 }
@@ -689,6 +424,7 @@ unordered_map<char, void (*)()> gAction = {
     {'$', lineEnd},     {'T', top},         {'G', bottom},
     {'i', insertMode},  {'x', del},         {kCtrlQ, quit},
     {kCtrlR, redraw},   {kCtrlS, save},     {'o', newLine},
+    {kCtrlF, finder},
     {'H', gotoUp},      {'L', gotoDown},
     {'f', commandMode}, {':', commandMode}, {' ', commandMode},
     {'d', del},         {'c', lineBegin},   {'w', oneWordMove},
@@ -697,16 +433,11 @@ unordered_map<char, void (*)()> gAction = {
 
 };
 
-bool isChar(char data) {
-    return (data >= 'a' && data <= 'z') || (data >= 'A' && data <= 'Z') || (data >= '0' && data <= '9') ? true : false;
-}
-
 int main(int argc, char **argv) {
-    if (argc < 2)
-        return 2;
+	if (argc < 2)
+		return 2;
 
-    classical = false;
-    //classical = true;
+	classical = false;
 
     // init
     initscr();
@@ -722,16 +453,21 @@ int main(int argc, char **argv) {
     gBuf.assign(istreambuf_iterator<char>(ifs), istreambuf_iterator<char>());
     gUndoBuf = gBuf;
 
+    nowMode = NOMAL_MODE;
     commandLineWord = " NOMAL ";
+    finderData = {""};
+    finderSwitch = false;
 
     // split token
     if (!classical) {
         // 色設
         start_color();
-        BACK = 0xEA;
-        assume_default_colors(0, BACK);
-        backChange(BACK);
-        attrset(COLOR_PAIR(1));
+
+        if (can_change_color() == true && has_colors() == true )
+            backChange();
+
+        assume_default_colors(BACK, BACK);
+
         string nowToken;
         for (auto data : gBuf) {
             if (isChar(data))
@@ -758,3 +494,4 @@ int main(int argc, char **argv) {
     endwin();
     return 0;
 }
+

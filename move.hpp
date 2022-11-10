@@ -1,0 +1,21 @@
+extern int adjust(const int inOffset, const int inCol);
+extern int lineTop(const int inOffset);
+extern int nextLineTop(const int inOffset);
+extern void left();
+extern void right();
+extern void up();
+extern void down();
+extern void lineBegin();
+extern void lineEnd();
+extern void top();
+extern void bottom();
+extern void wordLeft();
+extern void wordRight();
+extern void pageUp();
+extern void pageDown();
+extern void gotoUp();
+extern void gotoDown();
+extern void oneWordMove();
+extern void oneWordBack();
+extern void gotoLine();
+
