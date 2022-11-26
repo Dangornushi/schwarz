@@ -17,11 +17,12 @@ void backChange() {
     init_color(INSERT_MODE, 265, 300, 30);
     init_color(COMMAND_MODE, 250, 560, 250);
     init_color(RESERVED, 105*RGB_buf, 136*RGB_buf, 186*RGB_buf);
-    init_color(TYPE, 114*RGB_buf, 141*RGB_buf, 186*RGB_buf); 
+    init_color(TYPE, 191*RGB_buf, 148*RGB_buf, 228*RGB_buf); 
     init_color(FUNCTION, 159*RGB_buf, 149*RGB_buf, 102*RGB_buf); 
     init_color(NOMAL, 185*RGB_buf, 187*RGB_buf, 198*RGB_buf); 
     init_color(OP, 97*RGB_buf, 151*RGB_buf, 162*RGB_buf); 
     init_color(NUMBER, 142*RGB_buf, 89*RGB_buf, 114*RGB_buf); 
+    init_color(COMMENT, 165*RGB_buf, 167*RGB_buf, 178*RGB_buf); 
 
     init_pair(STATUS, NOMAL, NOMAL_MODE); 
     init_pair(COMMANDLINE, NOMAL, COMMANDLINE); 
@@ -43,7 +44,7 @@ void backChange() {
     init_pair(OP, OP, back);
     init_pair(SUBWIN, 0x69, 0x5A); 
     init_pair(SP_RESERVED, 0xA7, back);
-    init_pair(COMMENT, 0xF5, back);
+    init_pair(COMMENT, COMMENT, back);
     init_pair(FUNCTION, FUNCTION, back);
 
 }

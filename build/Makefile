@@ -273,6 +273,30 @@ util.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/schwarz.dir/build.make CMakeFiles/schwarz.dir/util.cpp.s
 .PHONY : util.cpp.s
 
+visualMode.o: visualMode.cpp.o
+.PHONY : visualMode.o
+
+# target to build an object file
+visualMode.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/schwarz.dir/build.make CMakeFiles/schwarz.dir/visualMode.cpp.o
+.PHONY : visualMode.cpp.o
+
+visualMode.i: visualMode.cpp.i
+.PHONY : visualMode.i
+
+# target to preprocess a source file
+visualMode.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/schwarz.dir/build.make CMakeFiles/schwarz.dir/visualMode.cpp.i
+.PHONY : visualMode.cpp.i
+
+visualMode.s: visualMode.cpp.s
+.PHONY : visualMode.s
+
+# target to generate assembly for a file
+visualMode.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/schwarz.dir/build.make CMakeFiles/schwarz.dir/visualMode.cpp.s
+.PHONY : visualMode.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -300,6 +324,9 @@ help:
 	@echo "... util.o"
 	@echo "... util.i"
 	@echo "... util.s"
+	@echo "... visualMode.o"
+	@echo "... visualMode.i"
+	@echo "... visualMode.s"
 .PHONY : help
 
 

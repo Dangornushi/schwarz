@@ -8,10 +8,12 @@
 #include <map>
 #include <unordered_map>
 #include <vector>
+#include <string>
 
 #define NOMAL_M 0
 #define INSERT_M 1
 #define COMMAND_M 2
+#define VISUAL_M 3
 
 #define NOMAL 1
 #define MACRO 2
@@ -47,14 +49,15 @@ enum {
     kDEL = 127,
     kCtrlSpace = 0,
     kCtrlD = 4,
-    kCtrlU = 21,
+    kCtrlF = 6,
     kEnter = 13,
     kCtrlN = 14,
     kCtrlP = 16,
     kCtrlQ = 17,
-    kCtrlS = 19,
     kCtrlR = 18,
-    kCtrlF = 6,
+    kCtrlS = 19,
+    kCtrlU = 21,
+    kCtrlW = 23,
     VisualMode = 3,
 };
 
@@ -63,27 +66,34 @@ typedef struct {
     int type;
 } Token;
 
+extern void init();
+extern void run();
+
 extern bool split_token(string::iterator data, const char *word, int index);
 
-extern void tokenPaint(int *nowToken, int *tokenCounter, const int len,
-                       const int attribute);
+extern void tokenPaint(int *nowToken, int *tokenCounter, const int len, const int attribute);
 extern vector<Token> initPredictiveTransform();
 extern void backChange();
 
 extern void display();
 extern void redraw();
 extern void quit();
+extern void save();
 
 extern void insertMode();
 extern void visualMode();
 extern void del();
+extern void finderCursor();
+extern void globalInit();
 
+extern const char *gFileName;
 extern int gIndex;
 extern int gLines;
 extern vector<char> gBuf, gUndoBuf;
 extern vector<string> finderData;
 extern int gPageStart, gPageEnd;
 extern int gCol, gRow;
+extern int gUndoIndex;
 extern int LineStart, LineEnd;
 extern int nowLineNum;
 extern int w, h;
@@ -92,5 +102,13 @@ extern int nowMode;
 extern string commandLineWord;
 extern bool gDone;
 extern bool finderSwitch;
-extern const char *gFileName;
+extern int nowWindow;
+extern int windows;
+extern int visualStart;
+extern int visualEnd;
+extern int visualStartCol;
+extern int visualStartRow;
+extern int visualEndCol;
+extern int visualEndRow;
+
 

@@ -13,6 +13,7 @@ exit(0);
 #include "move.hpp"
 #include "util.hpp"
 #include "finder.hpp"
+#include "visualMode.hpp"
 
 const char *gFileName;
 
@@ -23,23 +24,56 @@ string commandLineWord;
 string yankBuf;
 
 bool gDone = false;
-int gIndex = 0 /* offset of cursor pos */;
-int gPageStart = 0;
-int gPageEnd = 0;
-int gLines = 0;
+int gIndex;
+int gPageStart;
+int gPageEnd;
+int gLines;
 int gCol, gRow;
+int gUndoIndex = 0;
 
-int nowLineNum = 1, LineStart = 0, LineEnd = 0;
+int nowLineNum;
+int LineStart;
+int LineEnd;
 int w, h;
 
-int nowMode = NOMAL_MODE;
-int BACK = 0;
-int renderingLineNum = 1;
-int colorSet = 1;
+int moveDiff;
+int nowMode;
+int BACK;
+int renderingLineNum;
+int colorSet;
 int nowLineBuf;
+int nowWindow;
+int windows;
+int visualStartCol;
+int visualStartRow;
+int visualEndCol;
+int visualEndRow;
+int visualStart;
+int visualEnd;
 bool classical;
 bool finderSwitch;
 
+void globalInit() {
+    nowMode = NOMAL_MODE;
+    gIndex = 0 /* offset of cursor pos */;
+    gPageStart = 0;
+    gPageEnd = 0;
+    gLines = 0;
+    gRow = 0;
+    gCol = 0;
+    nowLineNum = 1;
+    LineStart = 0;
+    LineEnd = 0;
+    BACK = 0;
+    renderingLineNum = 1;
+    colorSet = 1;
+    visualStartCol = 0;
+    visualStartRow = 0;
+    visualEndCol = 0;
+    visualEndRow = 0;
+    visualStart = 0;
+    visualEnd = 0;
+}
 
 // TAG: Tokens
 vector<Token> initPredictiveTransform() {
@@ -55,15 +89,25 @@ vector<Token> initPredictiveTransform() {
         Token {"class ", RESERVED},
 
         // C/C++
+        Token {"break", RESERVED},
         Token {"char ", TYPE},
         Token {"const ", SP_RESERVED},
+        Token {"case ", RESERVED},
+        Token {"typedef ", SP_RESERVED},
+        Token {"struct ", RESERVED},
         Token {"map", TYPE},
+        Token {"namespace ", RESERVED},
         Token {"vector", TYPE},
         Token {"bool ", TYPE},
         Token {"string ", TYPE},
         Token {"#define ", MACRO},
         Token {"#include ", MACRO},
         Token {"printf", RESERVED},
+        Token {"public", SP_RESERVED},
+        Token {"private", SP_RESERVED},
+        Token {"uint32", TYPE},
+        Token {"uint8", TYPE},
+        Token {"using ", SP_RESERVED},
 
         // Python
         Token {"elif ", RESERVED},
@@ -161,9 +205,42 @@ void wordJump() {
         }
         commandLineWord = jumpWordBuf;
     }
-    /*gIndex = */
-        index(jumpWordBuf, gBuf);
+    index(jumpWordBuf, gBuf);
     redraw();
+}
+
+void renderingFinder() {
+    string gFileNameBuf;
+    int winW = 0; 
+    int winH = (h-1);
+
+    savetty();
+    
+    attrset(COLOR_PAIR(COMMANDLINE));
+    for (int ch;;) {
+        if ((ch = getch()) == kESC)
+            break;
+
+        else if ((ch == kBS) || (ch == kDEL))
+            gFileNameBuf.erase(gFileNameBuf.end()-1);
+
+        else if (ch == '\n')
+                break;
+        else 
+            gFileNameBuf.insert(gFileNameBuf.end(), ch);
+
+        move(winH, 0);
+        clrtoeol();
+        mvaddstr(winH, winW, gFileNameBuf.c_str());
+    }
+
+    gFileName = gFileNameBuf.c_str();
+
+    clear();
+    refresh();
+    resetty();
+    globalInit();
+    run();
 }
 
 // Command input
@@ -172,24 +249,54 @@ void commandMode() {
     string before_commandLineWord = commandLineWord;
     commandLineWord = "> ";
     redraw();
-    char ch = getch();
 
-    if (ch == 'w')
-        save();
-    if (ch == 'q')
-        quit();
-    if (ch == 'l')
-        renderingNowLine();
+    for (int ch = getch();;) {
+        commandLineWord = ch;
+        redraw();
 
-    commandLineWord = before_commandLineWord;
+        if (kESC == ch)
+            break;
+
+        if ('w' == ch) {
+            save();
+            break;
+        }
+
+        if ('q' == ch) {
+            quit();
+            break;
+        }
+
+        if ('o' == ch) {
+            renderingFinder();
+            break;
+        }
+
+
+        if ('l' == ch) {
+            renderingNowLine();
+            break;
+        }
+        break;
+    }
+
+    //commandLineWord = before_commandLineWord;
     nowMode = NOMAL_MODE;
     redraw();
 }
 
 void newLine() {
     lineEnd();
-    gBuf.insert(gBuf.begin() + gIndex, '\n');
-    gIndex++;
+    gBuf.insert(gBuf.begin() + gIndex++, '\n');
+    (gBuf[lineTop(gIndex - 1)] == '\t')
+        ? gBuf.insert(gBuf.begin() + gIndex++, '\t')
+        : std::vector<char>::iterator();
+    nowLineNum++;
+    gLines++;
+
+    gCol=0;
+    gRow++;
+    clear();
     redraw();
     insertMode();
 }
@@ -205,13 +312,6 @@ void lineDel() {
     */
 }
 
-template <typename T>
-void slice(std::vector<T> &v, int m, int n) {
-    auto first = v.cbegin() + m;
-    auto last = v.cbegin() + n + 1; 
-    v.erase(first, last);
-}
-
 // insertMode 
 void insertMode() {
     nowMode = INSERT_MODE;
@@ -223,14 +323,16 @@ void insertMode() {
     string nowInputWord;
     vector<Token> newPredictive;
 
-    for (int ch;;display(), savetty()) {
-        redraw();
+    gUndoBuf = gBuf;
+    gUndoIndex = gIndex;
+
+    for (int ch;;redraw(), savetty()) {
         if (!classical) {
             newPredictive.clear();
             newPredictive = predictiveWin(nowInputWord, predictive, viewIndex);
         }
 
-        move(gRow, gCol+nowLineBuf);
+        move(gRow, gCol+nowLineBuf+1);
 
         if ((ch = getch()) == kESC) {
             viewIndex = -1;
@@ -238,8 +340,12 @@ void insertMode() {
         }
 
         else if (gIndex > 0 && (ch == kBS || ch == kDEL)) {
-            gBuf.erase(gBuf.begin() + (--gIndex));
-                if (nowInputWord.size() > 0)nowInputWord.resize(nowInputWord.size()-1);
+            (gBuf[--gIndex] == '\n')
+                ? gLines--
+                : 0;
+
+            gBuf.erase(gBuf.begin() + (gIndex));
+            if (nowInputWord.size() > 0)nowInputWord.resize(nowInputWord.size()-1);
             nowLineNum--;
             viewIndex = -1;
         }
@@ -292,10 +398,11 @@ void insertMode() {
             gBuf.insert(gBuf.begin() + gIndex++, ch);
 
             if (ch == '\n') {
-                (gBuf[lineTop(gIndex)] == '\t')
+                (gBuf[lineTop(gIndex-1)] == '\t')
                    ? gBuf.insert(gBuf.begin() + gIndex++, '\t')
                    : std::vector<char>::iterator();
                 nowLineNum++;
+                gLines++;
             }
             tmpIndex = gIndex;
 
@@ -313,93 +420,8 @@ void insertMode() {
     commandLineWord = " NOMAL ";
 }
 
-// visualMode
-void visualMode() {
-    nowMode = VisualMode;
-    int moveDiff = 0;
-    int base_gCol;
-    int base_gIndex;
-
-    yankBuf.clear();
-
-    base_gIndex = gIndex;
-    base_gCol = gCol;
-
-    for (int ch; (ch = getch()) != kESC; display()) {
-        switch (ch) {
-            case 'h': {
-                (--moveDiff > 0) ? yankBuf.resize(yankBuf.size() - 1)
-                                 : yankBuf.push_back(gBuf[gIndex]);
-
-                if (gIndex > 0) gIndex--;
-                break;
-            }
-
-            case 'j': {
-                int tmp_gIndex = gIndex;
-                for (;gBuf[gIndex] != '\n';)
-					gIndex++;
-                gIndex++;
-
-                int i = 0;
-                for (;tmp_gIndex < gIndex && gIndex > 0; ++moveDiff, i++)
-                    yankBuf.push_back(gBuf[gIndex--]);
-
-                gIndex += i;
-
-                redraw();
-                break;
-            }
-
-            case 'k': {
-                int tmp_gIndex = gIndex;
-                int i = 0;
-
-                for (;gBuf[gIndex-1] != '\n';) 
-					gIndex--;
-                gIndex--;
-
-                for (;gIndex < tmp_gIndex; --moveDiff, i++)
-                    yankBuf.push_back(gBuf[gIndex++]);
-
-                gIndex -= i;
-
-                redraw();
-                break;
-            }
-
-            case 'l': {
-                (++moveDiff >= 0) ? yankBuf.push_back(gBuf[gIndex])
-                                  : yankBuf.resize(yankBuf.size() - 1);
-                gIndex++;
-                break;
-            }
-
-            case 'y': {
-                yankBuf.push_back(gBuf[gIndex]);
-                if (moveDiff <= 0)
-					reverse(yankBuf.begin(), yankBuf.end());
-                return;
-            }
-
-            case 'd': {
-                if (++moveDiff >= 0) {
-                    slice(gBuf, base_gIndex, gIndex);
-                    gIndex = base_gIndex;
-                } else 
-                    slice(gBuf, gIndex, base_gIndex);
-                redraw();
-                return;
-            }
-
-            case kESC:
-                break;
-        }
-    }
-}
-
 void paste() {
-    //reverse(yankBuf.begin(), yankBuf.end());
+    (moveDiff < 0) ? reverse(yankBuf.begin(), yankBuf.end()) : void();
     for (auto ch : yankBuf)
         gBuf.insert(gBuf.begin() + gIndex++, ch == '\r' ? '\n' : ch);
 }
@@ -414,7 +436,12 @@ void undo() {
     gBuf.clear();
     copy(gUndoBuf.begin(), gUndoBuf.end(), back_inserter(gBuf) );
     gBuf = gUndoBuf;
+    gIndex = gUndoIndex;
     redraw();
+}
+
+void windowChange() {
+    (windows > nowWindow && windows > 1) ? nowWindow++ : nowWindow = 0;
 }
 
 unordered_map<char, void (*)()> gAction = {
@@ -424,6 +451,7 @@ unordered_map<char, void (*)()> gAction = {
     {'$', lineEnd},     {'T', top},         {'G', bottom},
     {'i', insertMode},  {'x', del},         {kCtrlQ, quit},
     {kCtrlR, redraw},   {kCtrlS, save},     {'o', newLine},
+    //{kCtrlW, finderCursor},
     {kCtrlF, finder},
     {'H', gotoUp},      {'L', gotoDown},
     {'f', commandMode}, {':', commandMode}, {' ', commandMode},
@@ -433,27 +461,15 @@ unordered_map<char, void (*)()> gAction = {
 
 };
 
-int main(int argc, char **argv) {
-	if (argc < 2)
-		return 2;
-
-	classical = false;
-
-    // init
-    initscr();
-    set_tabsize(4);
-    raw();
-    noecho();
-    idlok(stdscr, true);  // init screen.
-    getmaxyx(stdscr, h, w);
-    
-    // file
-    gFileName = argv[1];
+void run() {
     ifstream ifs(gFileName, ios::binary);
     gBuf.assign(istreambuf_iterator<char>(ifs), istreambuf_iterator<char>());
-    gUndoBuf = gBuf;
+    gUndoBuf = gBuf;    
+    gUndoIndex = gIndex;
 
     nowMode = NOMAL_MODE;
+    nowWindow = 0;
+    windows = 1;
     commandLineWord = " NOMAL ";
     finderData = {""};
     finderSwitch = false;
@@ -469,6 +485,7 @@ int main(int argc, char **argv) {
         assume_default_colors(BACK, BACK);
 
         string nowToken;
+
         for (auto data : gBuf) {
             if (isChar(data))
                 nowToken.push_back(data);
@@ -490,8 +507,36 @@ int main(int argc, char **argv) {
         char ch = getch();
         if (gAction.count(ch) > 0)
             gAction[ch]();
+
+        if (nowWindow == 1)
+            finder();
     }
     endwin();
+}
+
+void init() {
+    // init
+    initscr();
+    setlocale(LC_ALL, "");
+    set_tabsize(4);
+    raw();
+    noecho();
+    idlok(stdscr, true);  // init screen.
+    getmaxyx(stdscr, h, w);
+    
+	classical = false;
+
+    run();
+}
+
+int main(int argc, char **argv) {
+	if (argc < 2)
+		return 2;
+
+    // file
+    gFileName = argv[1];
+    init();
+
     return 0;
 }
 

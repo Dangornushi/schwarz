@@ -1,6 +1,7 @@
 #include "schwarz.hpp"
 #include "move.hpp"
 #include "util.hpp"
+#include "finder.hpp"
 
 void display() {
 
@@ -24,25 +25,26 @@ void display() {
     }
 
     move(0, 0);
+
     int i = 0;
     int j = 0;
     int c = (gLines > h) ? 0 : 1;
     int tokenCounter = 0;
     int nowToken = 0;
     int AllLineLength = to_string(gLines).size()+1;
-    string lineNumberString = to_string(LineStart + c++) + " ";
+    string lineNumberString;
 
     gPageEnd = gPageStart;
 
-    for (;AllLineLength > lineNumberString.size();)
-        lineNumberString += " ";
+    if (finderData.size() > i && finderSwitch) {
+        attrset(COLOR_PAIR(NOMAL)); printw("%s", finderData[i].c_str()); }
+
+    drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
 
     nowLineBuf = lineNumberString.size();
-    if (finderSwitch)
-        nowLineBuf += finderData[0].length();
 
-    attrset(COLOR_PAIR(LINE));
-    printw("%s", (((finderData.size() > i && finderSwitch) ?finderData[i] : "") + lineNumberString).c_str());
+    if (finderSwitch)
+        nowLineBuf += finderData[0].length()+1;
 
     for (auto p = gBuf.begin() + gPageEnd;; gPageEnd++, p++) {
         if (gIndex == gPageEnd) {
@@ -53,6 +55,27 @@ void display() {
 
         if (LINES-1 <= i || gBuf.size() <= gPageEnd)
             break;
+
+        if (nowMode == VISUAL_M &&
+            ((gPageEnd > visualStart && gPageEnd < visualEnd) ||
+             (gPageEnd < visualStart && gPageEnd > visualEnd))) {
+
+            attrset(COLOR_PAIR(COMMANDLINE));
+            (*p == '\t') ? printw("    ") : addch(*p);
+            j += *p == '\t' ? 4 - (j & 3) : 1;
+            if (LineStart + c >= gLines + 1) {
+                i++;
+                break;
+            }
+
+            if (*p == '\n' || COLS <= j) {
+                drawInDir(finderSwitch, lineNumberString, ++i);
+                drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
+
+                j = 0;
+            }
+            continue;
+        }
 
         if (*p != '\r') {
             // if the colour options was set
@@ -106,38 +129,26 @@ void display() {
 
             j += *p == '\t' ? 4 - (j & 3) : 1;
         }
-        if (*p == '\n' || COLS <= j) {
 
-            if (!(LineStart + c < gLines+1))  {
+        if (LineStart + c >= gLines + 1) {
+                i++;
                 break;
-            }
+        }
 
-            lineNumberString = to_string(LineStart + c++) + " "; 
-
-            for (; AllLineLength > lineNumberString.size() ;lineNumberString += " ");
-            attrset(COLOR_PAIR(LINE));
-
-            i++;
-            if (finderSwitch) {
-                if (finderData.size() < i)
-                    for (int k=0;k < nowLineBuf-1; k++)
-                        printw(" ");
-                else {
-                    printw("%s", finderData[i].c_str());
-
-                    for (int k = finderData[i].size(); k < nowLineBuf-1; k++)
-                        printw(" ");
-                }
-            }
-            printw("%s", (lineNumberString).c_str());
+        if (*p == '\n' || COLS <= j) {
+            drawInDir(finderSwitch, lineNumberString, ++i);
+            drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
             j = 0;
         }
     }
 
     attrset(COLOR_PAIR(NOMAL));
 
-    for (;++i < h-1;)
-        mvaddstr(i, 0, "~");
+    while (i < h-1) {
+        drawInDir(finderSwitch, lineNumberString, i++);
+        lineNumberString = "~\n";
+        drawTildeAndFinder(&lineNumberString,  AllLineLength);
+    }
 
     if (gRow < LINES-1)
         gRow += howChangeStart;
@@ -157,7 +168,7 @@ void display() {
     clrtobot();
 
     // カーソルの表示
-    move(gRow, gCol+nowLineBuf);
+    move(gRow, gCol+nowLineBuf+1);
     refresh(); 
 }
 
