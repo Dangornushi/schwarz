@@ -14,22 +14,15 @@ void slice(std::vector<T> &v, int m, int n) {
 void visualMode() {
     nowMode = VISUAL_M;
     moveDiff = 0;
-    int base_gCol;
     int base_gIndex;
     string visualBuf;
 
     yankBuf.clear();
 
     base_gIndex = gIndex;
-    base_gCol = gCol;
-
-    visualStartCol = gCol;
-    visualStartRow = gRow;
     visualStart = gIndex;
 
     for (int ch; (ch = getch()) != kESC; display()) {
-        visualEndRow  = gRow;
-        visualEndCol  = gCol;
 
         switch (ch) {
             case 'h': {
@@ -102,11 +95,6 @@ void visualMode() {
             case 'y': {
                 yankBuf = visualBuf;
                 yankBuf.push_back(gBuf[gIndex]);
-                
-                //if (moveDiff < 0)
-					//reverse(yankBuf.begin(), yankBuf.end());
-                /*
-                    */
                 return;
             }
 

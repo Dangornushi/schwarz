@@ -44,10 +44,6 @@ int colorSet;
 int nowLineBuf;
 int nowWindow;
 int windows;
-int visualStartCol;
-int visualStartRow;
-int visualEndCol;
-int visualEndRow;
 int visualStart;
 int visualEnd;
 bool classical;
@@ -61,16 +57,14 @@ void globalInit() {
     gLines = 0;
     gRow = 0;
     gCol = 0;
+
     nowLineNum = 1;
     LineStart = 0;
     LineEnd = 0;
     BACK = 0;
     renderingLineNum = 1;
     colorSet = 1;
-    visualStartCol = 0;
-    visualStartRow = 0;
-    visualEndCol = 0;
-    visualEndRow = 0;
+    
     visualStart = 0;
     visualEnd = 0;
 }
@@ -108,6 +102,9 @@ vector<Token> initPredictiveTransform() {
         Token {"uint32", TYPE},
         Token {"uint8", TYPE},
         Token {"using ", SP_RESERVED},
+        Token {"/*", CONSECUTIVECOMMENT},
+        Token {"*/", CONSECUTIVECOMMENT},
+        Token {"//", COMMENT},
 
         // Python
         Token {"elif ", RESERVED},
@@ -398,9 +395,13 @@ void insertMode() {
             gBuf.insert(gBuf.begin() + gIndex++, ch);
 
             if (ch == '\n') {
-                (gBuf[lineTop(gIndex-1)] == '\t')
-                   ? gBuf.insert(gBuf.begin() + gIndex++, '\t')
-                   : std::vector<char>::iterator();
+                int spaceCounter = 0;
+
+                for (int i = lineTop(gIndex-1) ;gBuf[i] == '\t' || gBuf[i] == ' '; i++, spaceCounter++);
+
+                for (int i =0;i < spaceCounter; i++)
+                    gBuf.insert(gBuf.begin() + gIndex++, '\t');
+
                 nowLineNum++;
                 gLines++;
             }
@@ -410,7 +411,6 @@ void insertMode() {
 
             if (!classical) {
                 predictive.push_back(Token{nowInputWord, NOMAL});
-                //predictive.push_back(Token{"", 0});
                 nowInputWord.clear();
             }
         }

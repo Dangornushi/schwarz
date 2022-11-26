@@ -39,7 +39,9 @@
 #define INSERT_MODE 22
 #define COMMAND_MODE 23
 #define LINE 24
+#define CONSECUTIVECOMMENT 25
 #define VISUAL 0x8
+
 
 using namespace std;
 
@@ -106,9 +108,5 @@ extern int nowWindow;
 extern int windows;
 extern int visualStart;
 extern int visualEnd;
-extern int visualStartCol;
-extern int visualStartRow;
-extern int visualEndCol;
-extern int visualEndRow;
 
 

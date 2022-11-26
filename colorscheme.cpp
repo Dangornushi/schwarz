@@ -22,7 +22,7 @@ void backChange() {
     init_color(NOMAL, 185*RGB_buf, 187*RGB_buf, 198*RGB_buf); 
     init_color(OP, 97*RGB_buf, 151*RGB_buf, 162*RGB_buf); 
     init_color(NUMBER, 142*RGB_buf, 89*RGB_buf, 114*RGB_buf); 
-    init_color(COMMENT, 165*RGB_buf, 167*RGB_buf, 178*RGB_buf); 
+    init_color(COMMENT, 71*RGB_buf, 85*RGB_buf, 92*RGB_buf); 
 
     init_pair(STATUS, NOMAL, NOMAL_MODE); 
     init_pair(COMMANDLINE, NOMAL, COMMANDLINE); 
@@ -45,6 +45,7 @@ void backChange() {
     init_pair(SUBWIN, 0x69, 0x5A); 
     init_pair(SP_RESERVED, 0xA7, back);
     init_pair(COMMENT, COMMENT, back);
+    init_pair(CONSECUTIVECOMMENT, COMMENT, back);
     init_pair(FUNCTION, FUNCTION, back);
 
 }

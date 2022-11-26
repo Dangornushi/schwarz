@@ -33,6 +33,8 @@ void display() {
     int nowToken = 0;
     int AllLineLength = to_string(gLines).size()+1;
     string lineNumberString;
+    bool nowComment = false;
+    bool nowConsecutiveComment = false;
 
     gPageEnd = gPageStart;
 
@@ -102,7 +104,14 @@ void display() {
                     attrset(COLOR_PAIR(BRACKETS));
                     break;
 
-                default: { 
+                default: {
+                    if (nowComment || nowConsecutiveComment) {
+                        if (*p == '/') {
+                            nowConsecutiveComment = false;
+                        }
+                        attrset(COLOR_PAIR(COMMENT));
+                        break;
+                    }
 
                     if (!isdigit(*p)) {
                         vector<Token> vec = initPredictiveTransform();
@@ -114,6 +123,11 @@ void display() {
 
                             if (split_token(p, v.word.c_str(), v.word.size()) ||
                                 (nowToken == v.type && tokenCounter > 0)) {
+                                if (v.type == COMMENT)
+                                    nowComment = true;
+                                if (v.type == CONSECUTIVECOMMENT) {
+                                    nowConsecutiveComment = true;
+                                }
                                 tokenPaint(&nowToken, &tokenCounter, v.word.size(), v.type);
                                 break;
                             }
@@ -131,14 +145,16 @@ void display() {
         }
 
         if (LineStart + c >= gLines + 1) {
-                i++;
-                break;
+            i++;
+            break;
         }
 
         if (*p == '\n' || COLS <= j) {
+            attrset(COLOR_PAIR(NOMAL));
             drawInDir(finderSwitch, lineNumberString, ++i);
             drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
             j = 0;
+            nowComment = false;
         }
     }
 
