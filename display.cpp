@@ -108,6 +108,7 @@ void display() {
                     if (nowComment || nowConsecutiveComment) {
                         if (*p == '/') {
                             nowConsecutiveComment = false;
+                            nowComment = false;
                         }
                         attrset(COLOR_PAIR(COMMENT));
                         break;
@@ -146,15 +147,16 @@ void display() {
 
         if (LineStart + c >= gLines + 1) {
             i++;
+            nowComment = false;
             break;
         }
 
         if (*p == '\n' || COLS <= j) {
-            attrset(COLOR_PAIR(NOMAL));
             drawInDir(finderSwitch, lineNumberString, ++i);
             drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
             j = 0;
             nowComment = false;
+            attrset(COLOR_PAIR(NOMAL));
         }
     }
 

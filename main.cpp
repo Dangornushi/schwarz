@@ -206,17 +206,29 @@ void wordJump() {
     redraw();
 }
 
+void newOpen() {
+    clear();
+    refresh();
+    resetty();
+    globalInit();
+    run();
+}
+
 void renderingFinder() {
     string gFileNameBuf;
     int winW = 0; 
     int winH = (h-1);
+    savetty(); 
 
-    savetty();
-    
+    move(winH, 0);
+    mvaddstr(winH, winW, "[ open filename ]");
+    move(winH, 0);
+
     attrset(COLOR_PAIR(COMMANDLINE));
+
     for (int ch;;) {
         if ((ch = getch()) == kESC)
-            break;
+            return;
 
         else if ((ch == kBS) || (ch == kDEL))
             gFileNameBuf.erase(gFileNameBuf.end()-1);
@@ -226,18 +238,12 @@ void renderingFinder() {
         else 
             gFileNameBuf.insert(gFileNameBuf.end(), ch);
 
-        move(winH, 0);
         clrtoeol();
         mvaddstr(winH, winW, gFileNameBuf.c_str());
     }
 
     gFileName = gFileNameBuf.c_str();
-
-    clear();
-    refresh();
-    resetty();
-    globalInit();
-    run();
+    newOpen();
 }
 
 // Command input
@@ -264,11 +270,17 @@ void commandMode() {
             break;
         }
 
+        if ('f' == ch) {
+            finder();
+            renderingFinder();
+            finder();
+            break;
+        }
+
         if ('o' == ch) {
             renderingFinder();
             break;
         }
-
 
         if ('l' == ch) {
             renderingNowLine();
@@ -282,12 +294,41 @@ void commandMode() {
     redraw();
 }
 
+void addCounter(char c, char s, int spaceNum) { 
+    for (int i=0; c == '{' && spaceNum > i;i++)
+        gBuf.insert(gBuf.begin() + gIndex++, s);
+    gBuf.insert(gBuf.begin() + gIndex++, s);
+}
+
+void addCounter(char c, char s) { 
+    if (c == '{')
+        gBuf.insert(gBuf.begin() + gIndex++, s);
+    gBuf.insert(gBuf.begin() + gIndex++, s);
+}
+
+int getEndIndex(int i) {
+    while (gBuf[i] != '\n') i++;
+    return i;
+}
+
+void whiteSpaceCompletion() {
+    int spaceCounter = 0;
+    int tabCounter = 0;
+
+    for (int i = lineTop(gIndex-1);;i++) {
+        if (gBuf[i] == ' ')
+            addCounter(gBuf[gIndex-2], ' ', 4);
+        else if (gBuf[i] == '\t') 
+            addCounter(gBuf[gIndex-2], '\t');
+        else
+            break;
+    }
+}
+
 void newLine() {
     lineEnd();
     gBuf.insert(gBuf.begin() + gIndex++, '\n');
-    (gBuf[lineTop(gIndex - 1)] == '\t')
-        ? gBuf.insert(gBuf.begin() + gIndex++, '\t')
-        : std::vector<char>::iterator();
+    whiteSpaceCompletion();
     nowLineNum++;
     gLines++;
 
@@ -395,12 +436,7 @@ void insertMode() {
             gBuf.insert(gBuf.begin() + gIndex++, ch);
 
             if (ch == '\n') {
-                int spaceCounter = 0;
-
-                for (int i = lineTop(gIndex-1) ;gBuf[i] == '\t' || gBuf[i] == ' '; i++, spaceCounter++);
-
-                for (int i =0;i < spaceCounter; i++)
-                    gBuf.insert(gBuf.begin() + gIndex++, '\t');
+                whiteSpaceCompletion();
 
                 nowLineNum++;
                 gLines++;
