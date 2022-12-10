@@ -36,10 +36,22 @@ void visualMode() {
             case 'j': {
                 int tmp_gIndex = gIndex;
 
-                for (; gBuf[++gIndex - 1] != '\n';) {
-                    if (gBuf[gIndex + 2] == '\t') gCol -= 3;
-                }
+                for (; gBuf[++gIndex - 1] != '\n';);
+                /*
+                258
+                1046
+
+                clear();
+                refresh();
+                exit(0);
+                    printw("%d : %c\n", gBuf[i], gBuf[i]);
+                */
                 gIndex += gCol;
+
+                for (int i = gIndex-gCol; i < gIndex; i++) {
+                    if (gBuf[i] == '\t')
+                        gIndex -= 3; 
+                }
 
                 int i = 0;
                 string visualData;
@@ -63,22 +75,24 @@ void visualMode() {
                 string visualData;
 
                 for (;gBuf[--gIndex] != '\n';);
-                if (gBuf[gIndex-3] != '\n' && gBuf[gIndex-2] != '\n') {
-                    for (; gBuf[--gIndex] != '\n';) {
-                        if (gBuf[gIndex] == '\t') gCol -= 3;
-                    }
+                for (;gBuf[--gIndex] != '\n';);
 
-                    gIndex += gCol;
-                } else
-                    --gIndex;
+                /*
+                gIndex ++;//= gCol+1;
+                for (int i = 0; i < gCol; i++) {// - gCol; i < gIndex; i++) {
+                    gIndex++;
+                    if (gBuf[i+gIndex] == '\t') gIndex -= 3;
+                }*/
 
-                int now_gIndex = gIndex+1;
-                for (;tmp_gIndex-1 > gIndex; --moveDiff)
-                    visualData.push_back(gBuf[++gIndex]);
+                gIndex += gCol+1;
+                for (int i = gIndex - gCol; i < gIndex; i++) {
+                    if (gBuf[i] == '\t') gIndex -= 3;
+                }
 
-                visualBuf.insert(0, visualData);
+                for (;gIndex < tmp_gIndex; --moveDiff)
+                    visualData.push_back(gBuf[tmp_gIndex--]);
 
-                gIndex = now_gIndex;
+                visualBuf.insert(visualBuf.size(), visualData);
 
                 redraw();
                 break;
@@ -107,7 +121,7 @@ void visualMode() {
                     gIndex = base_gIndex;
                 } else  {
                     slice(gBuf, gIndex, base_gIndex);
-					reverse(yankBuf.begin(), yankBuf.end());
+					//reverse(yankBuf.begin(), yankBuf.end());
                 }
                 redraw();
                 return;

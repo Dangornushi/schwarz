@@ -5,30 +5,32 @@
 
 void display() {
 
-    int howChangeStart = 0, howManyEnter = 0;
+    int c = 1;
 
-    // 上に移動
     if (gIndex <= gPageStart) {
+        // 上に移動
         (gIndex > 0) ? LineStart-- : 0;
-        gPageStart = lineTop(gIndex); // 前のラインのインデックスを取得
+        gPageStart = lineTop(gIndex);
     }
 
-    // 下に移動
-    if (gPageEnd <= gIndex) {
-        // 潜在的なバグ
-        (LineStart < gLines-(h-1)) ? LineStart++ : 0;
-        gPageStart = nextLineTop(gIndex); // 次のラインのインデックスを取得 
-        int n = LINES-1; // ファイル容量 - コマンド表示欄分マイナス 
+    else if (gPageEnd < gIndex) {
+        // 下に移動
+        
+        (LineStart < (h-1)) ? LineStart++ : 0;
+        gPageStart = nextLineTop(gIndex);
 
-        for (int i = 0; i < n; i++)
+        // ファイル容量 - コマンド表示欄分マイナス 
+        int n = gPageStart == gBuf.size() - 1 ? LINES - 1 : LINES;
+        for (int i = 0; i < n; i++) {
             gPageStart = lineTop(gPageStart - 1);
+        }
     }
 
     move(0, 0);
 
-    int i = 0;
-    int j = 0;
-    int c = (gLines > h) ? 0 : 1;
+    int x = 0;
+    int y = 0;
+    //int j = 0;
     int tokenCounter = 0;
     int nowToken = 0;
     int AllLineLength = to_string(gLines).size()+1;
@@ -38,48 +40,67 @@ void display() {
 
     gPageEnd = gPageStart;
 
-    if (finderData.size() > i && finderSwitch) {
-        attrset(COLOR_PAIR(NOMAL)); printw("%s", finderData[i].c_str()); }
+    if (finderData.size() > 0 && finderSwitch) {
+        attrset(COLOR_PAIR(NOMAL)); printw(" >%s", finderData[0].c_str()); }
+
+    nowLineBuf = 0;
 
     drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
 
-    nowLineBuf = lineNumberString.size();
-
-    if (finderSwitch)
-        nowLineBuf += finderData[0].length()+1;
+    //if (finderSwitch)
+    //    nowLineBuf += finderData[0].length();
 
     for (auto p = gBuf.begin() + gPageEnd;; gPageEnd++, p++) {
+
         if (gIndex == gPageEnd) {
             // update cursor pos.
-            gRow = i;
-            gCol = j;
+            gRow = y;
+            gCol = x;
         } 
 
-        if (LINES-1 <= i || gBuf.size() <= gPageEnd)
+        if (y == h - 1 || gBuf.size() <= gPageEnd)
             break;
 
         if (nowMode == VISUAL_M &&
-            ((gPageEnd > visualStart && gPageEnd < visualEnd) ||
-             (gPageEnd < visualStart && gPageEnd > visualEnd))) {
+            ((gPageEnd >= visualStart && gPageEnd < visualEnd) ||
+             (gPageEnd < visualStart && gPageEnd >= visualEnd))) {
 
             attrset(COLOR_PAIR(COMMANDLINE));
+
             (*p == '\t') ? printw("    ") : addch(*p);
-            j += *p == '\t' ? 4 - (j & 3) : 1;
-            if (LineStart + c >= gLines + 1) {
-                i++;
+            x += *p == '\t' ? 4 - (x & 3) : 1;
+            if (LineStart + c > gLines + 1) {
+                y++;
                 break;
             }
 
-            if (*p == '\n' || COLS <= j) {
-                drawInDir(finderSwitch, lineNumberString, ++i);
+            if (*p == '\n' || COLS <= x) {
+                drawInDir(finderSwitch, lineNumberString, ++y);
                 drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
 
-                j = 0;
+                x = 0;
             }
             continue;
         }
 
-        if (*p != '\r') {
+        
+        if ((LineStart + c) > gLines) {
+            y++;
+            nowComment = false;
+        }
+
+        else;
+
+        if (*p == '\n' || COLS <= x) {
+            printw("\n");
+            drawInDir(finderSwitch, lineNumberString, ++y);
+            drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
+            x = 0;
+            nowComment = false;
+            attrset(COLOR_PAIR(NOMAL));
+        }
+        //if (*p != '\r') {
+        else {
             // if the colour options was set
             switch (*p) {
                 case '<':
@@ -126,9 +147,8 @@ void display() {
                                 (nowToken == v.type && tokenCounter > 0)) {
                                 if (v.type == COMMENT)
                                     nowComment = true;
-                                if (v.type == CONSECUTIVECOMMENT) {
+                                if (v.type == CONSECUTIVECOMMENT)
                                     nowConsecutiveComment = true;
-                                }
                                 tokenPaint(&nowToken, &tokenCounter, v.word.size(), v.type);
                                 break;
                             }
@@ -142,47 +162,32 @@ void display() {
 
             (*p == '\t') ? printw("    ") : addch(*p);
 
-            j += *p == '\t' ? 4 - (j & 3) : 1;
+            x += *p == '\t' ? 4 - (x & 3) : 1;
         }
 
-        if (LineStart + c >= gLines + 1) {
-            i++;
-            nowComment = false;
-            break;
-        }
-
-        if (*p == '\n' || COLS <= j) {
-            drawInDir(finderSwitch, lineNumberString, ++i);
-            drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
-            j = 0;
-            nowComment = false;
-            attrset(COLOR_PAIR(NOMAL));
-        }
     }
 
+    move(y, 0);
     attrset(COLOR_PAIR(NOMAL));
 
-    while (i < h-1) {
-        drawInDir(finderSwitch, lineNumberString, i++);
+    while (y <= h-1) { 
+        drawInDir(finderSwitch, lineNumberString, y++);
         lineNumberString = "~\n";
         drawTildeAndFinder(&lineNumberString,  AllLineLength);
     }
-
-    if (gRow < LINES-1)
-        gRow += howChangeStart;
-
     string fileName = gFileName;
     string cursorRow = " " + fileName + " " + to_string(nowLineNum) + "*" + to_string(gCol+1) + " ";
+    int consoleRow = h - 1;
 
     attrset(COLOR_PAIR(nowMode));
-    mvaddstr(i, 0, commandLineWord.c_str());
+    mvaddstr(consoleRow, 0, commandLineWord.c_str());
     attrset(COLOR_PAIR(COMMANDLINE));
 
     for (auto j=commandLineWord.size(); j < COLS - cursorRow.size();)
-        mvaddstr(i, j++, " ");
+        mvaddstr(consoleRow, j++, " ");
 
     attrset(COLOR_PAIR(STATUS));
-    mvaddstr(i, COLS - cursorRow.size(), cursorRow.c_str());
+    mvaddstr(consoleRow, COLS - cursorRow.size(), cursorRow.c_str());
     clrtobot();
 
     // カーソルの表示

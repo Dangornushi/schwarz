@@ -18,29 +18,33 @@ int adjust(const int inOffset, const int inCol) {
     for (int i = 0; offset < gBuf.size() && gBuf[offset] != '\n' && i < inCol;offset++)
         i += gBuf[offset] == '\t' ? 4 - (i & 3): 1;
 
+    if (inOffset > gIndex)
+        for (int i = gIndex; i < inOffset; (gBuf[i++] == '\n') ? nowLineNum++ : 0);
+
+    else if (inOffset <= gIndex)
+        for (int i = gIndex; i > inOffset; (gBuf[--i] == '\n') ? nowLineNum-- : 0);
+
     return offset;
 }
 
 // minimal Move Commands
 void left()      { if (gBuf[gIndex-1] != '\n')--gIndex;}
 void right()     { if (gBuf[gIndex] != '\n')++gIndex;}
-void up()        { gIndex = adjust(lineTop(lineTop(gIndex) - 1), gCol); (nowLineNum > 1) ? nowLineNum-- : 1;}// nowlineNum-- <- 行数を一つマイナス
-void down()      { gIndex = adjust(nextLineTop(gIndex), gCol); (gIndex < gBuf.size()-1) ? nowLineNum++ : 1;} // nowlineNum++ <- 行数を一つ追加
-void gotoUp()    { gIndex = adjust(gPageStart, 0); }
-void gotoDown()  { gIndex = adjust(gPageEnd-1, 0); }
-void lineBegin() { gIndex = lineTop(gIndex); }
-void lineEnd()   { while (gBuf[gIndex] != '\n') gIndex++;}// nextLineTop(gIndex);}
-void top()       { gIndex = 0; }
-void bottom()    { gIndex = gBuf.size() - 1; }
-
-void del()       { if (gIndex < gBuf.size() - 1) gBuf.erase(gBuf.begin() + gIndex);}
-void quit()      { gDone = true; }
-void redraw()    { clear(); display(); }
+void up()        { gIndex = adjust(lineTop(lineTop(gIndex) - 1), gCol); }// <- 行数を一つマイナス
+void down()      { gIndex = adjust(nextLineTop(gIndex), gCol); }// <- 行数を一つ追加
+void gotoUp()    { gIndex = adjust(gPageStart, 0); } // <- ページの最上部に移動
+void gotoDown()  { gIndex = adjust(gPageEnd-1, 0); } // <- ページの最下部に移動
+void lineBegin() { gIndex = lineTop(gIndex); } // <- 行の始めに移動
+void lineEnd()   { while (gBuf[gIndex] != '\n') gIndex++;} // <- 行の最後に移動
+void top()       { gIndex = 0; } // <- ファイルの始めに移動
+void bottom()    { gIndex = gBuf.size() - 1; } // <- ファイルの最後に移動
+void del()       { if (gIndex < gBuf.size() - 1) gBuf.erase(gBuf.begin() + gIndex);} // <- ファイルバッファから一つ削除
+void quit()      { gDone = true; }  // <- エディタの終了
+void redraw()    { clear(); display(); } // <- メインウィンドウの書き直しとレフレッシュ
 
 void wordLeft() {
     while (!isspace(gBuf[gIndex]) && 0 < gIndex)
         --gIndex;
-
     while (isspace(gBuf[gIndex]) && 0 < gIndex)
         --gIndex;
 }

@@ -20,7 +20,7 @@ void drawLinenumAndFinder(string *lineNumberString, int *c, const int AllLineLen
 
     (*lineNumberString).insert(0, " ");
     attrset(COLOR_PAIR(LINE));
-    printw("%s", (*lineNumberString).c_str());
+//    printw("%s", (*lineNumberString).c_str());
 }
 
 void drawTildeAndFinder(string *lineNumberString, const int AllLineLength) {
@@ -33,17 +33,20 @@ void drawTildeAndFinder(string *lineNumberString, const int AllLineLength) {
 
     (*lineNumberString).insert(0, " ");
     attrset(COLOR_PAIR(LINE));
-    printw("%s", (*lineNumberString).c_str());
+//    printw("%s", (*lineNumberString).c_str());
+
+    printw("\n");
 }
 
 void printDirectoryEntry(const fs::directory_entry &entry, int *maxNameLength) {
     string fileOrDir = entry.path().string();//.erase(0, 2);
+    fileOrDir = fileOrDir.erase(0, 2);
 
     if (entry.is_directory())
-        finderData.push_back(fileOrDir);
+        finderData.push_back("D " + fileOrDir);
 
     else if (entry.is_regular_file())
-        finderData.push_back(fileOrDir = "  " + fileOrDir);
+        finderData.push_back(fileOrDir = "F " + fileOrDir);
 
     fileAndDirS.push_back(fileOrDir);
 
@@ -58,65 +61,34 @@ void finderQuit() {
     display();
 }
 
-void finderCursor() {
-    
-    attrset(COLOR_PAIR(NOMAL));
-    for (int ch;;refresh()) {
-        ch = getch();
-
-        switch(ch) {
-            case 'k': {
-                (fRow > 2) ? fRow-- : 0;
-                move(fRow+1, 0);
-                printw(" ");
-                move(fRow, 0);
-                printw(">");
-                break;
-            }
-
-            case 'j': {
-                (fRow <= dirFilesNum) ? fRow++ : 0;
-                move(fRow-1, 0);
-                printw(" ");
-                move(fRow, 0);
-                printw(">");
-                break;
-            }
-
-            case '\n': {
-                //gDone = false;
-                globalInit();
-                clear();
-
-                gFileName = fileAndDirS[fRow-2].erase(fileAndDirS[fRow-2].find(" "), 2).c_str();  
-                run();
-                return;
-            }
-
-            case kCtrlF:
-                finder();
-                return;
-
-            default:
-                break;
-        }
-
-    }
-}
-
 void drawInDir(const bool finderSwitch, const string lineNumberString, const int index) {
-    if (!finderSwitch)
+
+    if (!finderSwitch) {
         return;
+    }
+
     if (finderData.size() <= index) {
-        for (int k = lineNumberString.length() + 1; k < nowLineBuf; k++)
+
+        for (int k = lineNumberString.length(); k < nowLineBuf; k++)
             printw(" ");
     } else {
-        printw("%s", finderData[index].c_str());
+        string fd = finderData[index];
+        if (fd[0] == 'F')
+            attrset(COLOR_PAIR(NOMAL));
 
-        for (int k = finderData[index].size() + lineNumberString.length() + 1;
-             k < nowLineBuf; k++)
-            printw(" ");
+        if (fd[0] == 'D')
+            attrset(COLOR_PAIR(TYPE));
+
+        printw(" %s", fd.c_str());
+
+        int k = finderData[index].size() + lineNumberString.length();
+        if (k > nowLineBuf)
+            nowLineBuf = k+1;
+        else {
+            for (; k < nowLineBuf; k++) printw(" ");
+        }
     }
+    attrset(COLOR_PAIR(NOMAL));
 }
 
 void drawFinder() {
@@ -143,7 +115,7 @@ void drawFinder() {
     for (int i = lengthBuf.length(); i < maxNameLength; i++)
         lengthBuf = " " + lengthBuf + " ";
 
-    finderData.insert(finderData.begin(), lengthBuf);
+//    finderData.insert(finderData.begin(), lengthBuf);
 
     finderSwitch = true;
     display();

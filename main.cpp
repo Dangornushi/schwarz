@@ -17,9 +17,9 @@ exit(0);
 
 const char *gFileName;
 
-vector<Token> predictive = initPredictiveTransform();
 vector<char> gBuf, gUndoBuf;
 vector<string> finderData;
+vector<Token> predictive = initPredictiveTransform();
 string commandLineWord;
 string yankBuf;
 
@@ -31,7 +31,7 @@ int gLines;
 int gCol, gRow;
 int gUndoIndex = 0;
 
-int nowLineNum;
+int nowLineNum = 1;
 int LineStart;
 int LineEnd;
 int w, h;
@@ -57,6 +57,7 @@ void globalInit() {
     gLines = 0;
     gRow = 0;
     gCol = 0;
+    gBuf = {};
 
     nowLineNum = 1;
     LineStart = 0;
@@ -167,8 +168,8 @@ void renderingNowLine() {
     savetty();
 
     attrset(COLOR_PAIR(SUBWIN));
-    mvaddstr(gRow+1, gCol, number.c_str());
-    move(gRow, gCol+nowLineBuf);
+    mvaddstr(gRow+1, gCol+nowLineBuf+1, number.c_str());
+    move(gRow, gCol+nowLineBuf+1);
     refresh();
     getch();
 
@@ -281,6 +282,22 @@ void commandMode() {
             renderingFinder();
             break;
         }
+
+        if ('r' == ch) {
+            resetty();
+
+            /*
+            clear();
+            printw("row: %d, col: %d\n", gRow, gCol);
+            refresh();
+            exit(0);
+            */
+
+            globalInit();
+            run();
+            break;
+        }
+
 
         if ('l' == ch) {
             renderingNowLine();
@@ -460,6 +477,7 @@ void paste() {
     (moveDiff < 0) ? reverse(yankBuf.begin(), yankBuf.end()) : void();
     for (auto ch : yankBuf)
         gBuf.insert(gBuf.begin() + gIndex++, ch == '\r' ? '\n' : ch);
+    (moveDiff < 0) ? reverse(yankBuf.begin(), yankBuf.end()) : void();
 }
 
 void addInsert() {
@@ -515,24 +533,22 @@ void run() {
         // 色設
         start_color();
 
-        if (can_change_color() == true && has_colors() == true )
-            backChange();
+        if (can_change_color() == true && has_colors() == true) backChange();
 
         assume_default_colors(BACK, BACK);
 
-        string nowToken;
+        string nt;
 
         for (auto data : gBuf) {
-            if (isChar(data))
-                nowToken.push_back(data);
+            if (isChar(data)) nt.push_back(data);
 
             if (data == '\n')
                 gLines++;
 
-            else if (!find(nowToken, predictive)) {
-                predictive.push_back(Token{nowToken, NOMAL});
+            else if (!find(nt, predictive)) {
+                predictive.push_back(Token{nt, NOMAL});
                 predictive.push_back(Token{"", 0});
-                nowToken.clear();
+                nt.clear();
             }
         }
     }
