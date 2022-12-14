@@ -20,22 +20,16 @@ void drawLinenumAndFinder(string *lineNumberString, int *c, const int AllLineLen
 
     (*lineNumberString).insert(0, " ");
     attrset(COLOR_PAIR(LINE));
-//    printw("%s", (*lineNumberString).c_str());
+    printw("%s", (*lineNumberString).c_str());
+    nowLineBuf = (*lineNumberString).size();
 }
 
 void drawTildeAndFinder(string *lineNumberString, const int AllLineLength) {
     attrset(COLOR_PAIR(COMMANDLINE));
     printw(" ");
 
-    for (; AllLineLength > (*lineNumberString).size();
-        (*lineNumberString).insert(0, " "))
-        ;
-
-    (*lineNumberString).insert(0, " ");
     attrset(COLOR_PAIR(LINE));
-//    printw("%s", (*lineNumberString).c_str());
-
-    printw("\n");
+    printw("%s", (*lineNumberString).c_str());
 }
 
 void printDirectoryEntry(const fs::directory_entry &entry, int *maxNameLength) {
@@ -64,30 +58,29 @@ void finderQuit() {
 void drawInDir(const bool finderSwitch, const string lineNumberString, const int index) {
 
     if (!finderSwitch) {
+        //nowLineBuf=2;
         return;
     }
-
     if (finderData.size() <= index) {
-
-        for (int k = lineNumberString.length(); k < nowLineBuf; k++)
-            printw(" ");
+        for (int k = 0; k < nowLineBuf-1; k++)
+            printw("_");
     } else {
-        string fd = finderData[index];
-        if (fd[0] == 'F')
-            attrset(COLOR_PAIR(NOMAL));
+        string fd;
+        if (index < finderData.size()) {
+            fd = finderData[index];
+            if (fd[0] == 'F') attrset(COLOR_PAIR(NOMAL));
 
-        if (fd[0] == 'D')
-            attrset(COLOR_PAIR(TYPE));
+            if (fd[0] == 'D') attrset(COLOR_PAIR(TYPE));
+            printw(" ");
+        }
+        printw("%s", fd.c_str());
 
-        printw(" %s", fd.c_str());
+        int k = fd.length() + lineNumberString.length();
 
-        int k = finderData[index].size() + lineNumberString.length();
         if (k > nowLineBuf)
             nowLineBuf = k+1;
-        else {
-            for (; k < nowLineBuf; k++) printw(" ");
-        }
-    }
+
+        for (; k < nowLineBuf+1; k++) printw(" "); }
     attrset(COLOR_PAIR(NOMAL));
 }
 
@@ -101,7 +94,6 @@ void drawFinder() {
 
     try {
         fs::directory_iterator it{"."};
-        finderData.push_back("* Root *");
 
         for (const fs::directory_entry &entry : it)
             printDirectoryEntry(entry, &maxNameLength);
@@ -109,13 +101,6 @@ void drawFinder() {
         quit();
         printw("ディレクトリ内のファイルを参照する際に問題が発生しました\n");
     }
-
-    string lengthBuf = "===--- Finder ---===";
-
-    for (int i = lengthBuf.length(); i < maxNameLength; i++)
-        lengthBuf = " " + lengthBuf + " ";
-
-//    finderData.insert(finderData.begin(), lengthBuf);
 
     finderSwitch = true;
     display();

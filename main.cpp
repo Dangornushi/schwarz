@@ -15,7 +15,9 @@ exit(0);
 #include "finder.hpp"
 #include "visualMode.hpp"
 
+namespace fs = std::__fs::filesystem;
 const char *gFileName;
+const fs::directory_iterator end;
 
 vector<char> gBuf, gUndoBuf;
 vector<string> finderData;
@@ -55,8 +57,9 @@ void globalInit() {
     gPageStart = 0;
     gPageEnd = 0;
     gLines = 0;
-    gRow = 0;
-    gCol = 0;
+    nowLineBuf = 0;
+//    gRow = 0;
+//    gCol = 0;
     gBuf = {};
 
     nowLineNum = 1;
@@ -169,7 +172,7 @@ void renderingNowLine() {
 
     attrset(COLOR_PAIR(SUBWIN));
     mvaddstr(gRow+1, gCol+nowLineBuf+1, number.c_str());
-    move(gRow, gCol+nowLineBuf+1);
+    move(gRow, gCol+nowLineBuf);
     refresh();
     getch();
 
@@ -247,6 +250,39 @@ void renderingFinder() {
     newOpen();
 }
 
+void commandLineLs() {
+    vector<string> lsData;
+    savetty();
+    try {
+        int num = 1;
+        fs::directory_iterator it{"."};
+        for (const fs::directory_entry &entry : it) {
+            string fileOrDir = entry.path().string();  //.erase(0, 2);
+            fileOrDir = to_string(num++) + " " + fileOrDir.erase(0, 2);
+            lsData.push_back(fileOrDir);
+        }
+    } catch (const fs::filesystem_error &e) {
+        quit();
+        printw("ディレクトリ内のファイルを参照する際に問題が発生しました\n");
+        return;
+    }
+    reverse(lsData.end(), lsData.begin());
+    int i = h - 1;
+    for (auto ls : lsData) {
+        mvaddstr(i--, 0, ls.c_str());
+    }
+    refresh();
+    char ch;
+    if (isdigit(ch = getch())) {
+        gFileName = lsData[(ch - '0')-1].erase(0, 2).c_str();
+        //globalInit();
+        run();
+        return;
+    }
+    resetty();
+    return;
+}
+
 // Command input
 void commandMode() {
     nowMode = COMMAND_MODE;
@@ -272,9 +308,7 @@ void commandMode() {
         }
 
         if ('f' == ch) {
-            finder();
-            renderingFinder();
-            finder();
+            commandLineLs();
             break;
         }
 
@@ -349,9 +383,8 @@ void newLine() {
     nowLineNum++;
     gLines++;
 
-    gCol=0;
+    gCol=nowLineBuf;
     gRow++;
-    clear();
     redraw();
     insertMode();
 }
@@ -445,7 +478,7 @@ void insertMode() {
 
         else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
                  (ch >= '0' && ch <= '9') || (ch == '_')) {
-            gBuf.insert(gBuf.begin() + gIndex++, ch == '\r' ? '\n' : ch);
+            gBuf.insert(gBuf.begin() + gIndex++, ch);
             (!classical) ? nowInputWord.push_back(ch) : void();
         }
 
@@ -506,7 +539,7 @@ unordered_map<char, void (*)()> gAction = {
     {'i', insertMode},  {'x', del},         {kCtrlQ, quit},
     {kCtrlR, redraw},   {kCtrlS, save},     {'o', newLine},
     //{kCtrlW, finderCursor},
-    {kCtrlF, finder},
+    {kCtrlF, commandLineLs},
     {'H', gotoUp},      {'L', gotoDown},
     {'f', commandMode}, {':', commandMode}, {' ', commandMode},
     {'d', del},         {'c', lineBegin},   {'w', oneWordMove},

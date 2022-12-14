@@ -13,7 +13,7 @@ void display() {
         gPageStart = lineTop(gIndex);
     }
 
-    else if (gPageEnd < gIndex) {
+    else if (gPageEnd <= gIndex) {
         // 下に移動
         
         (LineStart < (h-1)) ? LineStart++ : 0;
@@ -40,15 +40,10 @@ void display() {
 
     gPageEnd = gPageStart;
 
-    if (finderData.size() > 0 && finderSwitch) {
-        attrset(COLOR_PAIR(NOMAL)); printw(" >%s", finderData[0].c_str()); }
+    nowLineBuf = 1;
 
-    nowLineBuf = 0;
-
+    drawInDir(finderSwitch, lineNumberString, y);
     drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
-
-    //if (finderSwitch)
-    //    nowLineBuf += finderData[0].length();
 
     for (auto p = gBuf.begin() + gPageEnd;; gPageEnd++, p++) {
 
@@ -85,7 +80,7 @@ void display() {
 
         
         if ((LineStart + c) > gLines) {
-            y++;
+           // y++;
             nowComment = false;
         }
 
@@ -170,7 +165,7 @@ void display() {
     move(y, 0);
     attrset(COLOR_PAIR(NOMAL));
 
-    while (y <= h-1) { 
+    while (y < h-1) { 
         drawInDir(finderSwitch, lineNumberString, y++);
         lineNumberString = "~\n";
         drawTildeAndFinder(&lineNumberString,  AllLineLength);

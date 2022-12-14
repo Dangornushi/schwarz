@@ -37,15 +37,6 @@ void visualMode() {
                 int tmp_gIndex = gIndex;
 
                 for (; gBuf[++gIndex - 1] != '\n';);
-                /*
-                258
-                1046
-
-                clear();
-                refresh();
-                exit(0);
-                    printw("%d : %c\n", gBuf[i], gBuf[i]);
-                */
                 gIndex += gCol;
 
                 for (int i = gIndex-gCol; i < gIndex; i++) {
@@ -126,6 +117,19 @@ void visualMode() {
                 redraw();
                 return;
             }
+
+            case 'b': {
+                //gIndex++;
+                while (!isspace(gBuf[gIndex])) {
+                    (--moveDiff > 0) ? visualBuf.resize(visualBuf.size() - 1)
+                                     : visualBuf.push_back(gBuf[gIndex]);
+                    (gIndex > 0) ? gIndex-- : 0;
+                }
+
+                break;
+            }
+                      /*
+                       */
 
             case kESC:
                 break;
