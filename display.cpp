@@ -7,32 +7,28 @@ void display() {
 
     int c = 1;
 
-    if (gIndex <= gPageStart) {
+    if (gIndex < gPageStart) {
         // 上に移動
-        (gIndex > 0) ? LineStart-- : 0;
+        if (gRow >= 0 && LineStart > 0) {
+            LineStart--;
+        }
         gPageStart = lineTop(gIndex);
     }
 
-    else if (gPageEnd <= gIndex) {
-        // 下に移動
-        
-        (LineStart < (h-1)) ? LineStart++ : 0;
-        gPageStart = nextLineTop(gIndex);
-
-        // ファイル容量 - コマンド表示欄分マイナス 
-        int n = gPageStart == gBuf.size() - 1 ? LINES - 1 : LINES;
-        for (int i = 0; i < n; i++) {
-            gPageStart = lineTop(gPageStart - 1);
-        }
+    else if(gPageEnd<=gIndex && gIndex < gBuf.size() && gRow >= h-2)  {
+        ( gLines > h-2 ) ? LineStart++ : 0;
+        gPageStart=nextLineTop(gIndex);
+        int n = LINES;
+        for(int i=1; i<n; i++) { gPageStart=lineTop(gPageStart-1); }
     }
 
     move(0, 0);
 
     int x = 0;
     int y = 0;
-    //int j = 0;
     int tokenCounter = 0;
     int nowToken = 0;
+    int tmpLineBuf = nowLineBuf;
     int AllLineLength = to_string(gLines).size()+1;
     string lineNumberString;
     bool nowComment = false;
@@ -40,10 +36,10 @@ void display() {
 
     gPageEnd = gPageStart;
 
-    nowLineBuf = 1;
-
     drawInDir(finderSwitch, lineNumberString, y);
     drawLinenumAndFinder(&lineNumberString, &c, AllLineLength);
+
+    nowLineBuf = lineNumberString.size() + 1;
 
     for (auto p = gBuf.begin() + gPageEnd;; gPageEnd++, p++) {
 
@@ -64,7 +60,7 @@ void display() {
 
             (*p == '\t') ? printw("    ") : addch(*p);
             x += *p == '\t' ? 4 - (x & 3) : 1;
-            if (LineStart + c > gLines + 1) {
+            if (LineStart+1 + c > gLines + 1) {
                 y++;
                 break;
             }
@@ -79,13 +75,11 @@ void display() {
         }
 
         
-        if ((LineStart + c) > gLines) {
-           // y++;
+        
+        if (LineStart+c >= gLines) {
             nowComment = false;
         }
-
-        else;
-
+ 
         if (*p == '\n' || COLS <= x) {
             printw("\n");
             drawInDir(finderSwitch, lineNumberString, ++y);
@@ -186,7 +180,8 @@ void display() {
     clrtobot();
 
     // カーソルの表示
-    move(gRow, gCol+nowLineBuf+1);
+    move(gRow, gCol+nowLineBuf);
     refresh(); 
+//    nowLineBuf = tmpLineBuf;
 }
 

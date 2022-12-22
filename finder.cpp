@@ -21,7 +21,6 @@ void drawLinenumAndFinder(string *lineNumberString, int *c, const int AllLineLen
     (*lineNumberString).insert(0, " ");
     attrset(COLOR_PAIR(LINE));
     printw("%s", (*lineNumberString).c_str());
-    nowLineBuf = (*lineNumberString).size();
 }
 
 void drawTildeAndFinder(string *lineNumberString, const int AllLineLength) {

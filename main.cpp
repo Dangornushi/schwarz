@@ -43,7 +43,7 @@ int nowMode;
 int BACK;
 int renderingLineNum;
 int colorSet;
-int nowLineBuf;
+int nowLineBuf = 1;
 int nowWindow;
 int windows;
 int visualStart;
@@ -267,17 +267,45 @@ void commandLineLs() {
         return;
     }
     reverse(lsData.end(), lsData.begin());
-    int i = h - 1;
-    for (auto ls : lsData) {
-        mvaddstr(i--, 0, ls.c_str());
-    }
-    refresh();
-    char ch;
-    if (isdigit(ch = getch())) {
-        gFileName = lsData[(ch - '0')-1].erase(0, 2).c_str();
-        //globalInit();
-        run();
-        return;
+    char ch = 'a';
+    int scrollBase = 0;
+    for (;;) {
+        int i = h - 2;
+        attrset(COLOR_PAIR(NOMAL));
+        for (int j=scrollBase; j<10+scrollBase;j++) {
+            if (j >= lsData.size())
+                break;
+            mvaddstr(i--, 1, lsData[j].c_str());
+        }
+
+        attrset(COLOR_PAIR(COMMANDLINE));
+        for (int j = 0; j < w; j++) mvaddstr(i, j, " ");
+
+        refresh();
+
+        ch = getch();
+        if (isdigit(ch)) {
+            gFileName = lsData[(ch - '0') - 1 + scrollBase].erase(0, 2).c_str();
+            LineStart = 0;
+            LineEnd = 0;
+            nowLineNum = 1;
+            nowLineBuf = 1;
+            gLines = 0;
+            run();
+            return;
+        }
+        switch(ch) {
+            case 'j':
+                (scrollBase > 0) ? scrollBase-- : 0;
+                break;
+            case 'k':
+                (scrollBase < lsData.size()) ? scrollBase++ : 0;
+                break;
+            default:
+                break;
+        }
+        /*
+        */
     }
     resetty();
     return;
@@ -325,9 +353,10 @@ void commandMode() {
             printw("row: %d, col: %d\n", gRow, gCol);
             refresh();
             exit(0);
+            globalInit();
             */
 
-            globalInit();
+            LineStart = 0;
             run();
             break;
         }
@@ -380,10 +409,10 @@ void newLine() {
     lineEnd();
     gBuf.insert(gBuf.begin() + gIndex++, '\n');
     whiteSpaceCompletion();
-    nowLineNum++;
-    gLines++;
+    //nowLineNum++;
+    //gLines++;
 
-    gCol=nowLineBuf;
+    //gCol+=nowLineBuf;
     gRow++;
     redraw();
     insertMode();
@@ -414,13 +443,17 @@ void insertMode() {
     gUndoBuf = gBuf;
     gUndoIndex = gIndex;
 
-    for (int ch;;redraw(), savetty()) {
+    for (int ch;;) {
+        int tmpLineBuf = nowLineBuf;
+        redraw();
+        nowLineBuf = tmpLineBuf;
+        savetty();
         if (!classical) {
             newPredictive.clear();
             newPredictive = predictiveWin(nowInputWord, predictive, viewIndex);
         }
 
-        move(gRow, gCol+nowLineBuf+1);
+        move(gRow, gCol+nowLineBuf);
 
         if ((ch = getch()) == kESC) {
             viewIndex = -1;

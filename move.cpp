@@ -18,11 +18,27 @@ int adjust(const int inOffset, const int inCol) {
     for (int i = 0; offset < gBuf.size() && gBuf[offset] != '\n' && i < inCol;offset++)
         i += gBuf[offset] == '\t' ? 4 - (i & 3): 1;
 
-    if (inOffset > gIndex)
-        for (int i = gIndex; i < inOffset; (gBuf[i++] == '\n') ? nowLineNum++ : 0);
+    if (inOffset > gIndex) {
+        int i = gIndex;
+        for (; i < inOffset; (gBuf[i++] == '\n') ? nowLineNum++ : 0);
+        for (; i > 0; ) {
+            nowLineNum--;
+            if (gBuf[i--] == '\n') 
+                break;
 
-    else if (inOffset <= gIndex)
-        for (int i = gIndex; i > inOffset; (gBuf[--i] == '\n') ? nowLineNum-- : 0);
+        }
+    }
+
+    else if (inOffset <= gIndex) {
+        int i = gIndex;
+        for (; i >= inOffset; (gBuf[--i] == '\n') ? nowLineNum-- : 0);
+        for (;;) {
+            nowLineNum++;
+            if (gBuf[++i] == '\n') {
+                break;
+            }
+        }
+    }
 
     return offset;
 }
@@ -32,7 +48,7 @@ void left()      { if (gBuf[gIndex-1] != '\n')--gIndex;}
 void right()     { if (gBuf[gIndex] != '\n')++gIndex;}
 void up()        { gIndex = adjust(lineTop(lineTop(gIndex) - 1), gCol); }// <- 行数を一つマイナス
 void down()      { gIndex = adjust(nextLineTop(gIndex), gCol); }// <- 行数を一つ追加
-void gotoUp()    { gIndex = adjust(gPageStart, 0);} // <- ページの最上部に移動
+void gotoUp()    { gIndex = adjust(gPageStart, 0);} // <- ページの最上部に移動 
 void gotoDown()  { gIndex = adjust(gPageEnd-1, 0);} // <- ページの最下部に移動
 void lineBegin() { gIndex = lineTop(gIndex); } // <- 行の始めに移動
 void lineEnd()   { while (gBuf[gIndex] != '\n') gIndex++;} // <- 行の最後に移動
