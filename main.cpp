@@ -2,12 +2,6 @@
 // compile: g++ -std=c++1z main.cpp -lcurses
 // Github; Dangornushi/schwarz
 //DEBUG:
-/*
-clear();
-printw("%s\n", nowInputWord.c_str());
-refresh();
-exit(0);
-*/
 
 #include "schwarz.hpp"
 #include "move.hpp"
@@ -53,13 +47,12 @@ bool finderSwitch;
 
 void globalInit() {
     nowMode = NOMAL_MODE;
-    gIndex = 0 /* offset of cursor pos */;
+    gIndex = 0;
+    // offset of cursor pos
     gPageStart = 0;
     gPageEnd = 0;
     gLines = 0;
     nowLineBuf = 0;
-//    gRow = 0;
-//    gCol = 0;
     gBuf = {};
 
     nowLineNum = 1;
@@ -117,6 +110,16 @@ vector<Token> initPredictiveTransform() {
         Token {"__init__ ", RESERVED},
         Token {"__main__ ", RESERVED},
         Token {"self", TYPE},
+
+        // Rust
+        Token {"fn ", RESERVED},
+        Token {"->", OP},
+        Token {"i8", TYPE},
+        Token {"i32", TYPE},
+        Token {"i64", TYPE},
+        Token {"u8", TYPE},
+        Token {"u32", TYPE},
+        Token {"u64", TYPE},
     };
     return vec;
 }
@@ -269,13 +272,19 @@ void commandLineLs() {
     reverse(lsData.end(), lsData.begin());
     char ch = 'a';
     int scrollBase = 0;
+    int commandRow = 10;
+
     for (;;) {
         int i = h - 2;
-        attrset(COLOR_PAIR(NOMAL));
         for (int j=scrollBase; j<10+scrollBase;j++) {
-            if (j >= lsData.size())
+            if (j > lsData.size())
                 break;
-            mvaddstr(i--, 1, lsData[j].c_str());
+            attrset(COLOR_PAIR(NOMAL));
+            mvaddstr(i, 1, lsData[j].c_str());
+            attrset(COLOR_PAIR(BACK));
+            for (int k=lsData[j].length()+1;k < w; k++)
+                mvaddstr(i, k, " ");
+            i--;
         }
 
         attrset(COLOR_PAIR(COMMANDLINE));
@@ -285,7 +294,7 @@ void commandLineLs() {
 
         ch = getch();
         if (isdigit(ch)) {
-            gFileName = lsData[(ch - '0') - 1 + scrollBase].erase(0, 2).c_str();
+            gFileName = lsData.at((ch - '0') - 1 + scrollBase).erase(0, 2).c_str();
             LineStart = 0;
             LineEnd = 0;
             nowLineNum = 1;
@@ -294,18 +303,19 @@ void commandLineLs() {
             run();
             return;
         }
+
         switch(ch) {
             case 'j':
                 (scrollBase > 0) ? scrollBase-- : 0;
                 break;
             case 'k':
-                (scrollBase < lsData.size()) ? scrollBase++ : 0;
+                if (scrollBase < lsData.size()-commandRow)
+                    scrollBase++;
                 break;
             default:
-                break;
+                resetty();
+                return;
         }
-        /*
-        */
     }
     resetty();
     return;
@@ -461,9 +471,15 @@ void insertMode() {
         }
 
         else if (gIndex > 0 && (ch == kBS || ch == kDEL)) {
-            (gBuf[--gIndex] == '\n')
-                ? gLines--
-                : 0;
+            (gBuf[--gIndex] == '\n') ? gLines-- : 0;
+
+            if ((gBuf[gIndex] == '(' && gBuf[gIndex+1] == ')') ||
+                    (gBuf[gIndex] == '{' && gBuf[gIndex+1] == '}') ||
+                    (gBuf[gIndex] == '[' && gBuf[gIndex+1] == ']') ||
+                    (gBuf[gIndex] == '"' && gBuf[gIndex+1] == '"') ||
+                    (gBuf[gIndex] == '\'' && gBuf[gIndex+1] == '\'')) {
+                gBuf.erase(gBuf.begin() + (gIndex+1));
+            }
 
             gBuf.erase(gBuf.begin() + (gIndex));
             if (nowInputWord.size() > 0)nowInputWord.resize(nowInputWord.size()-1);
@@ -509,6 +525,16 @@ void insertMode() {
             newPredictive.clear();
         }
 
+        else if (ch == '{' || ch == '[' || ch == '(') {
+            gBuf.insert(gBuf.begin() + gIndex++, ch);
+            gBuf.insert(gBuf.begin() + gIndex, (ch == '(') ? ch+1 : ch+2);
+        }
+
+        else if (ch == '\'' || ch == '"') {
+            gBuf.insert(gBuf.begin() + gIndex++, ch);
+            gBuf.insert(gBuf.begin() + gIndex, ch);
+        }
+
         else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
                  (ch >= '0' && ch <= '9') || (ch == '_')) {
             gBuf.insert(gBuf.begin() + gIndex++, ch);
@@ -542,7 +568,7 @@ void insertMode() {
 void paste() {
     (moveDiff < 0) ? reverse(yankBuf.begin(), yankBuf.end()) : void();
     for (auto ch : yankBuf)
-        gBuf.insert(gBuf.begin() + gIndex++, ch == '\r' ? '\n' : ch);
+        gBuf.insert(gBuf.begin() + ++gIndex, ch == '\r' ? '\n' : ch);
     (moveDiff < 0) ? reverse(yankBuf.begin(), yankBuf.end()) : void();
 }
 

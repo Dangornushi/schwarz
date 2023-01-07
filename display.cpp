@@ -157,8 +157,6 @@ void display() {
     }
 
     move(y, 0);
-    attrset(COLOR_PAIR(NOMAL));
-
     while (y < h-1) { 
         drawInDir(finderSwitch, lineNumberString, y++);
         lineNumberString = "~\n";
@@ -175,13 +173,12 @@ void display() {
     for (auto j=commandLineWord.size(); j < COLS - cursorRow.size();)
         mvaddstr(consoleRow, j++, " ");
 
-    attrset(COLOR_PAIR(STATUS));
+    attrset(COLOR_PAIR(NOMAL));
     mvaddstr(consoleRow, COLS - cursorRow.size(), cursorRow.c_str());
     clrtobot();
 
     // カーソルの表示
     move(gRow, gCol+nowLineBuf);
     refresh(); 
-//    nowLineBuf = tmpLineBuf;
 }
 

@@ -40,6 +40,7 @@
 #define COMMAND_MODE 23
 #define LINE 24
 #define CONSECUTIVECOMMENT 25
+#define LINENUM 24
 #define VISUAL 0x8
 
 

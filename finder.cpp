@@ -15,8 +15,7 @@ void drawLinenumAndFinder(string *lineNumberString, int *c, const int AllLineLen
 
     *lineNumberString = to_string(LineStart + (*c)++) + " ";
     for (; AllLineLength > (*lineNumberString).size();
-        (*lineNumberString).insert(0, " "))
-        ;
+        (*lineNumberString).insert(0, " "));
 
     (*lineNumberString).insert(0, " ");
     attrset(COLOR_PAIR(LINE));

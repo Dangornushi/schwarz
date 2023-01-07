@@ -9,7 +9,7 @@ int lineTop(const int inOffset) {
 
 int nextLineTop(const int inOffset) {
     int offset = inOffset;
-    while (offset < gBuf.size() && gBuf[offset++] != '\n'); /* empty */
+    while (offset < gBuf.size() && gBuf[offset++] != '\n'); // empty
     return offset < gBuf.size() ? offset : gBuf.size() - 1;
 }
 
@@ -22,8 +22,8 @@ int adjust(const int inOffset, const int inCol) {
         int i = gIndex;
         for (; i < inOffset; (gBuf[i++] == '\n') ? nowLineNum++ : 0);
         for (; i > 0; ) {
-            nowLineNum--;
-            if (gBuf[i--] == '\n') 
+            //nowLineNum--;
+            if (gBuf[i++] == '\n') 
                 break;
 
         }
@@ -31,10 +31,9 @@ int adjust(const int inOffset, const int inCol) {
 
     else if (inOffset <= gIndex) {
         int i = gIndex;
-        for (; i >= inOffset; (gBuf[--i] == '\n') ? nowLineNum-- : 0);
+        for (; i > inOffset; (gBuf[--i] == '\n') ? nowLineNum-- : 0);
         for (;;) {
-            nowLineNum++;
-            if (gBuf[++i] == '\n') {
+            if (gBuf[i--] == '\n') {
                 break;
             }
         }
